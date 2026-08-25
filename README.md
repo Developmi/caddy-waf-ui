@@ -96,12 +96,17 @@ In your `Caddyfile.j2` (Ansible template), add at the end of each **UI-managed**
 
 Do **not** `import waf` in managed blocks (the overlay embeds its own `coraza_waf` - a second engine breaks the reload), and do **not** use a glob (`*.conf`): a specific import whose file is missing **hard-fails Caddy startup**, so Ansible must pre-create empty placeholder files before first boot. Exclusions are never imported from the Caddyfile - they enter via the Coraza internal `Include` inside the overlay. See [INTEGRATION.md](./INTEGRATION.md) §5 for the full contract.
 
-### 2. Create the secrets file
+### 2. Provide runtime variables (without hard dependency on .env)
 
 ```bash
+# Option A (local convenience):
 cp .env.example .env
 chmod 600 .env
 # Edit .env - set CADDY_UI_TOKEN and CADDY_ADMIN_URL
+
+# Option B (recommended for remote/prod):
+export CADDY_UI_TOKEN="<secret>"
+export CADDY_ADMIN_URL="http://caddy-waf:2019"
 ```
 
 ### 3. Add the sidecar to your compose
@@ -124,7 +129,17 @@ chmod 600 .env
     volumes:
       - caddy-ui-config:/ui-managed:rw
       - caddy-ui-backups:/backups:rw
-    env_file: .env
+    environment:
+      - CADDY_UI_TOKEN=${CADDY_UI_TOKEN:-}
+      - CADDY_ADMIN_URL=${CADDY_ADMIN_URL:-http://caddy-waf:2019}
+      - CADDY_UI_CADDYFILE=${CADDY_UI_CADDYFILE:-/etc/caddy/Caddyfile}
+      - CADDY_UI_MANAGED_DIR=${CADDY_UI_MANAGED_DIR:-/ui-managed}
+      - CADDY_UI_INCLUDE_DIR=${CADDY_UI_INCLUDE_DIR:-/etc/caddy/ui-managed}
+      - CADDY_UI_BACKUP_DIR=${CADDY_UI_BACKUP_DIR:-/backups}
+      - CADDY_UI_BACKUP_KEEP=${CADDY_UI_BACKUP_KEEP:-10}
+      - CADDY_UI_BIND=${CADDY_UI_BIND:-0.0.0.0:8080}
+      - CADDY_UI_LOG_LEVEL=${CADDY_UI_LOG_LEVEL:-info}
+      - CADDY_UI_AUDIT_LOG=${CADDY_UI_AUDIT_LOG:-/data/logs/coraza-audit.log}
     depends_on:
       - caddy
 
@@ -225,9 +240,9 @@ All configuration is via environment variables. No config file, no database.
 # --- UI Authentication ---
 # Bearer token for UI authentication (generate with: openssl rand -hex 32)
 #
-# DEV-ONLY: this file is read via compose env_file and stores the token in
-# plaintext. For production, do NOT put the token in .env - inject it from the
-# orchestrator's secret manager via env interpolation instead, e.g.:
+# DEV-ONLY: this file is optional convenience for local runs and stores the
+# token in plaintext. For production, do NOT put the token in .env - inject it
+# from the orchestrator's secret manager via env interpolation instead, e.g.:
 #   environment:
 #     - CADDY_UI_TOKEN=${CADDY_UI_TOKEN}   # sourced from the secret manager,
 #                                          # never committed, never in .env
