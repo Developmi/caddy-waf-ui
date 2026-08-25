@@ -98,7 +98,22 @@ services:
       - caddy_data:/data:ro
       # Caddyfile base de solo lectura, necesario para el reload real (POST /load)
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-    env_file: .env
+    environment:
+      # Token de autenticación de la UI (inyectar desde el entorno/secrets manager)
+      - CADDY_UI_TOKEN=${CADDY_UI_TOKEN:-}
+      # Caddy Admin API interna
+      - CADDY_ADMIN_URL=${CADDY_ADMIN_URL:-http://caddy-waf:2019}
+      # Ruta del Caddyfile que se envía a POST /load
+      - CADDY_UI_CADDYFILE=${CADDY_UI_CADDYFILE:-/etc/caddy/Caddyfile}
+      # Rutas y retención
+      - CADDY_UI_MANAGED_DIR=${CADDY_UI_MANAGED_DIR:-/ui-managed}
+      - CADDY_UI_INCLUDE_DIR=${CADDY_UI_INCLUDE_DIR:-/etc/caddy/ui-managed}
+      - CADDY_UI_BACKUP_DIR=${CADDY_UI_BACKUP_DIR:-/backups}
+      - CADDY_UI_BACKUP_KEEP=${CADDY_UI_BACKUP_KEEP:-10}
+      # Runtime
+      - CADDY_UI_BIND=${CADDY_UI_BIND:-0.0.0.0:8080}
+      - CADDY_UI_LOG_LEVEL=${CADDY_UI_LOG_LEVEL:-info}
+      - CADDY_UI_AUDIT_LOG=${CADDY_UI_AUDIT_LOG:-/data/logs/coraza-audit.log}
     depends_on:
       caddy-waf:
         condition: service_healthy

@@ -39,5 +39,28 @@ jobs:
       - name: Build
         run: make build
 
+  compose-config-no-env:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          persist-credentials: false
+
+      - name: Ensure no local .env is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .env
+
       - name: Validate compose config
         run: make compose-config
+
+      - name: Assert no .env side effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f .env ]; then
+            echo ".env was unexpectedly created during compose validation" >&2
+            exit 1
+          fi
