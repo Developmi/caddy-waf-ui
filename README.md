@@ -278,7 +278,7 @@ CADDY_UI_AUDIT_LOG=/data/logs/coraza-audit.log
 ACME_EMAIL=admin@example.com
 SITE_ADDRESS=localhost
 BACKEND_UPSTREAM=example-app:80
-CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.3.2
+CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.4.0
 EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 ```
 

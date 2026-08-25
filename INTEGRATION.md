@@ -91,7 +91,7 @@ The UI reads the Coraza audit log (`CADDY_UI_AUDIT_LOG`, default
 writes the log as uid 1337, so the contract depends on file/directory modes set
 by the sibling image:
 
-- **Verified against `ghcr.io/developmi/caddy-waf:v3.3.2`** (running stack):
+- **Verified against `ghcr.io/developmi/caddy-waf:v3.4.0`** (running stack):
   `/data/logs` is `drwxr-xr-x` and `coraza-audit.log` is `-rw-r--r--` (0644) -
   world-readable, so uid 1000 can open it. No action needed in this repo.
 - **Required invariant (stack/sibling image)**: the audit log must stay `0644`
