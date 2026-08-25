@@ -1,0 +1,166 @@
+{{define "content"}}
+<!-- Sidecar Isolation & Ansible Notice Banner -->
+<div class="top-banner">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h1 class="banner-title banner-title-lg">🔒 Sidecar Overlay Architecture Active</h1>
+      <p class="banner-sub">
+        Base Caddyfile is mounted read-only (<code>:ro</code>). The UI writes exclusively to
+        <code>/etc/caddy/ui-managed/*.conf</code> overlay files. Zero risk to your Ansible inventory or vault configurations.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Admin API Read-back Status (D3) -->
+{{ if .Readback.OK }}
+<div class="top-banner top-banner--ok">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h2 class="banner-title banner-title-sm">✅ Reload read-back verified</h2>
+      <p class="banner-sub">
+        The admin API confirmed the applied configuration: <code>{{ .Readback.Servers }}</code> server(s) live.
+        {{ if not .Readback.CheckedAt.IsZero }}Checked at <code>{{ date .Readback.CheckedAt "2006-01-02 15:04:05" }}</code>.{{ end }}
+      </p>
+    </div>
+  </div>
+</div>
+{{ else if .Readback.Err }}
+<div class="top-banner top-banner--fail">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h2 class="banner-title banner-title-sm">⚠️ Reload read-back failed - live config does not match the managed overlays</h2>
+      <p class="banner-sub banner-sub-danger">
+        {{ .Readback.Err }}
+        {{ if .Readback.Missing }}Missing host(s): <code>{{ range .Readback.Missing }}{{ . }} {{ end }}</code>{{ end }}
+        {{ if not .Readback.CheckedAt.IsZero }}Checked at <code>{{ date .Readback.CheckedAt "2006-01-02 15:04:05" }}</code>.{{ end }}
+        Changes are rolled back by the service layer; review the service logs.
+      </p>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+<!-- Key Metrics Grid -->
+<div class="grid-metrics">
+  <div class="metric-card">
+    <h2>Managed Domains</h2>
+    <div class="value">{{ len .Sites }}</div>
+    <div class="u-text-sm">
+      <span class="badge-on">{{ .SitesOn }} Active</span>
+      {{ if gt .SitesDetection 0 }}<span class="badge-detect">{{ .SitesDetection }} Detect</span>{{ end }}
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <h2>Active CRS Exclusions</h2>
+    <div class="value">{{ .TotalExclusions }}</div>
+    <div class="u-text-sm u-text-muted">Tuned rules across domains</div>
+  </div>
+
+  <div class="metric-card">
+    <h2>IP Rule Engine</h2>
+    <div class="value">{{ .TotalIPRules }}</div>
+    <div class="u-text-sm">
+      <span class="u-text-danger">{{ .TotalDenyIPs }} Denied</span> • <span class="u-text-ok">{{ .TotalAllowIPs }} Allowed</span>
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <h2>Coraza Detections</h2>
+    <div class="value">{{ len .Logs }}</div>
+    <div class="u-text-sm u-text-muted">From the Coraza audit log</div>
+  </div>
+</div>
+
+<!-- Managed Per-Site WAF Domains Table -->
+<div class="card-box">
+  <div class="card-box-header">
+    <div>
+      <h2 class="card-title">Managed Per-Site WAF Domains</h2>
+      <small class="u-text-faint">Controls generated <code>waf-{slug}.conf</code> overlays</small>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th scope="col">Domain</th>
+          <th scope="col">WAF Mode (SecRuleEngine)</th>
+          <th scope="col">Updated</th>
+          <th scope="col" class="u-text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Sites }}
+          <tr>
+            <td>
+              <strong class="u-mono u-text-white">{{ .Domain }}</strong>
+              {{ if .Degraded }}<span class="badge-degraded" title="Unknown mode in overlay header - displayed mode may differ from the state loaded in Caddy" aria-label="Degraded">degraded</span>{{ end }}
+            </td>
+            <td>
+              <form method="POST" action="/sites/{{ .Domain }}/mode" class="m-0 u-inline-block" data-confirm-off="Disable WAF protection for {{ .Domain }}? All rule evaluation will be bypassed for this domain.">
+                <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+                <input type="hidden" name="domain" value="{{ .Domain }}">
+                <input type="hidden" name="tab" value="overview">
+                <div role="group" class="m-0">
+                  <button type="submit" name="mode" value="On" class="{{ if eq .Mode "On" }}btn-on{{ else }}secondary outline{{ end }} btn-mini">On</button>
+                  <button type="submit" name="mode" value="DetectionOnly" class="{{ if eq .Mode "DetectionOnly" }}btn-detect{{ else }}secondary outline{{ end }} btn-mini">DetectionOnly</button>
+                  <button type="submit" name="mode" value="Off" class="{{ if eq .Mode "Off" }}btn-off{{ else }}secondary outline{{ end }} btn-mini">Off</button>
+                </div>
+              </form>
+            </td>
+            <td class="u-mono u-text-muted">
+              {{ if not .Updated.IsZero }}{{ date .Updated "2006-01-02 15:04" }}{{ end }}
+            </td>
+            <td class="u-text-right">
+              <a href="?tab=sites&domain={{ .Domain }}" class="btn-link">WAF Conf</a>
+              <a href="?tab=exclusions&domain={{ .Domain }}" class="btn-link">Rules</a>
+            </td>
+          </tr>
+        {{ else }}
+          <tr>
+            <td colspan="4" class="table-empty">
+              No managed domains registered yet. Apply a WAF overlay to register one: create a file such as
+              <code>waf-api_example_com.conf</code> inside <code>/etc/caddy/ui-managed/</code> and refresh - the domain will appear here.
+            </td>
+          </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Recent Coraza Audit Entries (lectura al render, no hay stream) -->
+<div class="card-box">
+  <div class="card-box-header">
+    <div>
+      <h2 class="card-title">Recent Audit Entries</h2>
+      <small class="u-text-faint">From <code>/data/logs/coraza-audit.log</code></small>
+    </div>
+    <a href="?tab=logs" class="secondary outline btn-compact">Open Full Log →</a>
+  </div>
+
+  <div class="card-box-body u-flex u-col u-gap">
+    {{ if .Logs }}
+      {{ range slice .Logs 0 4 }}
+        <div class="log-entry {{ if eq .Action "BLOCKED" }}log-entry--blocked{{ else }}log-entry--detected{{ end }}">
+          <div>
+            <span class="{{ if eq .Action "BLOCKED" }}badge-deny{{ else }}badge-detect{{ end }}">{{ .Action }}</span>
+            <strong class="log-entry-rule">ID: {{ .RuleID }}</strong>
+            <span class="log-entry-uri">{{ .URI }}</span>
+          </div>
+          <div class="u-text-faint">
+            Client: {{ .Client }}
+          </div>
+        </div>
+      {{ end }}
+    {{ else }}
+      <p class="card-box-empty">
+        No Coraza audit entries available yet.
+      </p>
+    {{ end }}
+  </div>
+</div>
+{{end}}

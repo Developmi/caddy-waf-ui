@@ -1,0 +1,87 @@
+{{define "content"}}
+{{ if .CurrentSite }}
+<!-- Header -->
+<div class="top-banner">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h1 class="banner-title banner-title-base">🔄 Configuration Snapshots &amp; Rollback Engine</h1>
+      <p class="banner-sub">
+        Backups saved in <code>/backups/{{ slug .CurrentSite.Domain }}/</code>
+      </p>
+    </div>
+
+    <form method="GET" action="/" class="domain-select-form">
+      <input type="hidden" name="tab" value="rollback">
+      <label class="domain-select-label" for="domain">Select Domain:</label>
+      <select name="domain" id="domain" class="domain-select">
+        {{ range .Sites }}
+          <option value="{{ .Domain }}" {{ if eq .Domain $.CurrentSite.Domain }}selected{{ end }}>{{ .Domain }}</option>
+        {{ end }}
+      </select>
+      <button type="submit" class="secondary btn-compact">Go</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- Left Column: Snapshot Timeline -->
+  <div>
+    <div class="card-box card-box--padded">
+      <h2 class="card-title card-title-spaced">
+        Snapshot History for {{ .CurrentSite.Domain }} ({{ len .Snapshots }})
+      </h2>
+
+      {{ if .Snapshots }}
+        <div class="snapshot-list">
+          {{ range .Snapshots }}
+            <div class="snapshot-card">
+              <div class="u-flex u-between">
+                <strong class="snapshot-time">{{ .Timestamp }}</strong>
+                <span class="badge-tag">{{ .FileType }}</span>
+              </div>
+              <div class="snapshot-size">{{ .Size }} bytes</div>
+              <form method="POST" action="/sites/{{ $.CurrentSite.Domain }}/rollback" class="snapshot-form" data-confirm="Restore configuration snapshot {{ .Timestamp }}.{{ .FileType }}.conf for {{ $.CurrentSite.Domain }}?">
+                <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+                <input type="hidden" name="domain" value="{{ $.CurrentSite.Domain }}">
+                <input type="hidden" name="snapId" value="{{ .Timestamp }}.{{ .FileType }}.conf">
+                <input type="hidden" name="tab" value="rollback">
+                <button type="submit" class="primary btn-compact">
+                  ⏪ Restore This Snapshot
+                </button>
+              </form>
+            </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <p class="list-empty">No configuration snapshots created yet for this domain.</p>
+      {{ end }}
+    </div>
+  </div>
+
+  <!-- Right Column: Current WAF Conf -->
+  <div>
+    <div class="card-box">
+      <div class="card-box-header">
+        <span class="file-badge">
+          📜 Active Config Overlay: <strong>waf-{{ slug .CurrentSite.Domain }}.conf</strong>
+        </span>
+      </div>
+      <div class="code-view">
+        {{ if .WafConf }}
+          <pre><code>{{ .WafConf }}</code></pre>
+        {{ else }}
+          <pre><code># No overlay file yet for this domain.</code></pre>
+        {{ end }}
+      </div>
+    </div>
+  </div>
+
+</div>
+{{ else }}
+<div class="card-box card-box--padded">
+  <h1 class="banner-title">No Managed Domains</h1>
+  <p class="card-box-empty">No managed domains registered yet.</p>
+</div>
+{{ end }}
+{{end}}

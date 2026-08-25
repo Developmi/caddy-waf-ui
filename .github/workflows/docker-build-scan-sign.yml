@@ -1,0 +1,234 @@
+# Build, scan, sign and push pipeline for the caddy-waf-ui multi-stage Go
+# Dockerfile (golang:1.26.6-alpine builder -> alpine:3.23.5 runtime, USER uiuser).
+# Pull requests: build + Trivy scan of both architectures (no push).
+# Tags (v*): push multi-arch, SBOM, keyless Cosign signature + CycloneDX
+# attestation, SLSA provenance, with rollback of the published version if any
+# post-push step fails so a broken tag is never left unsigned.
+
+name: Build, Scan, Sign, and Push
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: developmi/caddy-waf-ui
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # required for keyless Cosign
+  attestations: write
+  security-events: write # required for SARIF upload to GitHub Security tab
+
+jobs:
+  build-scan-sign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      # Login is unconditional (sibling-repo pattern): it succeeds even on fork
+      # PRs, where the GITHUB_TOKEN lacks packages:write - authorization is only
+      # enforced at push time, and push is gated on tag events below.
+      - name: Login to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+
+      - name: Build amd64 image for local scan (load into docker daemon)
+        id: build-scan
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build arm64 image for local scan (load into docker daemon)
+        id: build-scan-arm64
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/arm64
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan-arm64
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # Both architectures are scanned before push; the published platforms
+      # (linux/amd64, linux/arm64) must match the scanned surface exactly.
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: true
+
+      - name: Generate Trivy SARIF reports (amd64 + arm64)
+        continue-on-error: true
+        run: |
+          trivy image \
+            --scanners vuln,secret,misconfig \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --skip-version-check \
+            --format sarif \
+            --output trivy-results.sarif \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan"
+          trivy image \
+            --scanners vuln,secret,misconfig \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --skip-version-check \
+            --format sarif \
+            --output trivy-results-arm64.sarif \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan-arm64"
+
+      - name: Scan with Trivy (gate - fail on CRITICAL/HIGH, both architectures)
+        run: |
+          trivy image \
+            --scanners vuln,secret,misconfig \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --skip-version-check \
+            --exit-code 1 \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan"
+          trivy image \
+            --scanners vuln,secret,misconfig \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --skip-version-check \
+            --exit-code 1 \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan-arm64"
+
+      - name: Upload Trivy SARIF (amd64)
+        if: (!cancelled()) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      - name: Upload Trivy SARIF (arm64)
+        if: (!cancelled()) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
+        with:
+          sarif_file: trivy-results-arm64.sarif
+          category: trivy-arm64
+
+      - name: Build and push multi-arch (tag releases only)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        id: build-push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate SBOM (CycloneDX JSON)
+        id: sbom
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign image by digest (keyless OIDC)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && steps.build-push.outputs.digest != ''
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          cosign sign --yes "${IMAGE}"
+
+      - name: Attach SBOM attestation by digest
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && steps.build-push.outputs.digest != ''
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          cosign attest --type cyclonedx --predicate sbom.cdx.json --yes "${IMAGE}"
+
+      - name: Attest build provenance (SLSA)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          push-to-registry: true
+
+      # Rollback: if signing/attestation/SBOM fails after publish, remove the
+      # published version so a broken tag is never left unsigned.
+      - name: Rollback tag if post-push steps failed
+        if: failure() && steps.build-push.outputs.digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          PACKAGE="orgs/${{ github.repository_owner }}/packages/container/caddy-waf-ui"
+          VERSION_ID="$(gh api "${PACKAGE}/versions" \
+            | jq -r --arg ref "$REF_NAME" '.[] | select(.metadata.container.tags[]? == $ref) | .id' \
+            | head -1)"
+          if [ -n "$VERSION_ID" ]; then
+            gh api -X DELETE "${PACKAGE}/versions/${VERSION_ID}" \
+              -f confirm=true -H "Accept: application/vnd.github+json"
+          else
+            echo "::notice::Rollback skipped: no published version found for tag ${REF_NAME}"
+          fi
+
+      - name: Build summary
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          SUMMARY="$GITHUB_STEP_SUMMARY"
+          {
+            echo "## 🎉 Build Successful!"
+            echo ""
+            echo "**Version:** \`${REF_NAME}\`"
+            echo "**Image:** \`${REGISTRY}/${IMAGE_NAME}:${REF_NAME}\`"
+            echo "**Platforms:** \`linux/amd64\`, \`linux/arm64\`"
+            echo ""
+            echo "### 🐳 Pull Command"
+            echo "\`\`\`bash"
+            echo "docker pull ${REGISTRY}/${IMAGE_NAME}:${REF_NAME}"
+            echo "\`\`\`"
+          } >> "$SUMMARY"

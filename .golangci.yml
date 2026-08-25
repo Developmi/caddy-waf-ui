@@ -1,0 +1,97 @@
+# golangci-lint v2 configuration.
+# Explicit, minimal set: correctness (govet, errcheck, staticcheck, unused,
+# ineffassign), security (gosec) and style (misspell). Stdlib-only module.
+# Exclusions below are limited to proven false positives and are each
+# justified in place.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - gosec
+    - misspell
+
+  exclusions:
+    rules:
+      # Misspell: the codebase intentionally keeps Spanish comments (mixed
+      # ES/EN per file). These Spanish words are misread as English typos;
+      # ignoring exactly these keeps misspell active for identifiers and text.
+      - linters: [misspell]
+        text: "`(transportar|previos|secretos|originales|directorios|corrupto|producto|recorre|Patrones|presentes)` is a misspelling"
+      # G704 (SSRF) / G304 (path traversal) / G703 (taint) in the Admin API
+      # client: the base URL is operator-controlled (CADDY_ADMIN_URL, default
+      # http://caddy-waf:2019) and validated by validateAdminURL (scheme,
+      # non-empty host, no userinfo) before every request; the Caddyfile path
+      # (CADDY_UI_CADDYFILE) is likewise operator-controlled. Neither derives
+      # from request data.
+      - path: internal/caddy/admin.go
+        linters: [gosec]
+        text: "G(704|304|703)"
+      # G304 in backup.go: every component reaching os.ReadFile/Open/Create is
+      # validated first - snapshotID by the backupNamePattern regex (no path
+      # separators possible) via BackupType, fileType by literal or
+      # BackupType, domains by domain.DomainSlug (internal/domain/slug.go),
+      # filenames generated.
+      - path: internal/files/backup.go
+        linters: [gosec]
+        text: "G(304|703)"
+      # G306/G703 in AtomicWrite: 0644 is deliberate (enmienda A, R4-006) -
+      # overlays hold no secrets and must be world-readable by the Caddy
+      # container (UID 1337); the path derives from OverlayPath + DomainSlug
+      # (validated components), never from raw request data.
+      - path: internal/files/writer.go
+        linters: [gosec]
+        text: "G(306|703)"
+      # G304 in the audit log reader: Read is only invoked with
+      # logs.AuditLogPath() (operator env config), never with request data.
+      - path: internal/logs/reader.go
+        linters: [gosec]
+        text: "G(304|703)"
+      # G304 in the service chain: every public entry point (UpdateWAFMode,
+      # UpdateExclusions, UpdateIPRules, Rollback) validates the
+      # request-derived domain first via service.ValidateDomain (strict
+      # hostname, only [a-zA-Z0-9.-]) and domain.DomainSlug
+      # (internal/domain/slug.go) additionally sanitizes any non-alphanumeric
+      # character to "_" before a path reaches os.ReadFile/WriteFile - the
+      # exclusion only covers calls that happen after that validation.
+      - path: internal/service/chain.go
+        linters: [gosec]
+        text: "G(304|703)"
+      # G304 in the domain scanner: parseSiteHeader only receives paths built
+      # from os.ReadDir entries of the operator-configured ui-managed dir,
+      # filtered to "waf-*.conf"; nothing request-derived reaches it.
+      - path: internal/domain/scanner.go
+        linters: [gosec]
+        text: "G(304|703)"
+      # G304 in the UI overlay readers (overlay.go/pages.go): the same
+      # DomainSlug guarantee as chain.go - request domains are slugified
+      # (internal/domain/slug.go) before any path reaches these os.ReadFile
+      # calls.
+      - path: internal/ui/(overlay|pages)\.go
+        linters: [gosec]
+        text: "G(304|703)"
+      # Test files: fixtures are not security boundaries. G304/G306 mirror the
+      # production paths/permissions (0640/0644), G703 flags env-var taint in
+      # test scaffolding, G101 flags credential-shaped test data that the code
+      # under test must explicitly reject (admin_test.go userinfo case), G124
+      # flags hand-built request cookies in fixtures (integration tests in
+      # tests/integration are intentionally not touched - Fase 3), and G302
+      # flags the chmod that makes the managed dir read-only to force EACCES
+      # in AtomicWrite tests (chain_test.go breakOverlayWrites; the F1 temp
+      # contract made the historical ".tmp directory" injection obsolete).
+      - path: _test\.go$
+        linters: [gosec]
+        text: "G(304|306|703|101|124|302)"
+      # errcheck/G104 in tests/integration: those files are intentionally kept
+      # untouched (pre-existing green integration suite, out of scope); their
+      # httptest stubs ignore write errors by design.
+      - path: tests/integration/
+        linters: [errcheck]
+      - path: tests/integration/
+        linters: [gosec]
+        text: "G104"

@@ -1,0 +1,88 @@
+# =========================
+# Secrets and local env
+# =========================
+.env
+.env.*
+!.env.example
+.envrc
+.envsitter/
+
+# Local runtime config (keep Caddyfile.example tracked)
+Caddyfile
+
+# Certificates and signing material
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+cosign.key
+
+# Supply chain generated artifacts
+sbom.*.json
+*.attestation
+
+# =========================
+# Build outputs / binaries
+# =========================
+/dist/
+/bin/
+/server
+/caddy-waf-ui
+*.out
+*.test
+
+# =========================
+# Coverage and profiling
+# =========================
+coverage.out
+coverage.txt
+coverage.xml
+*.coverprofile
+*.prof
+
+# =========================
+# Logs and backups
+# =========================
+*.log
+/logs/
+/backups/
+*.tmp
+*.bak
+*.backup
+
+# =========================
+# Python caches / virtualenvs
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+
+# =========================
+# Local tooling state
+# =========================
+.codegraph/
+.aider*
+.atl/
+openspec/
+tools/bin/
+
+# =========================
+# Editor / OS noise
+# =========================
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

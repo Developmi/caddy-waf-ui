@@ -1,0 +1,37 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caddy WAF UI • Sign in</title>
+  <!-- Pico CSS v2.1.1 self-hosted (no CDN) -->
+  <link rel="stylesheet" href="/static/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="login-brand">
+      <span class="logo-badge">C</span>
+      <span>Caddy WAF UI</span>
+    </div>
+
+    <h1 class="login-title">Sidecar WAF Management</h1>
+    <p class="login-subtitle">
+      Sign in with the access token configured in <code>CADDY_UI_TOKEN</code>.
+    </p>
+
+    {{ if .Flash }}
+      <div class="login-error" role="alert">{{ .Flash }}</div>
+    {{ end }}
+
+    <form method="POST" action="/login">
+      <label>
+        Access token
+        <input type="password" name="token" placeholder="••••••••••••••••" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}

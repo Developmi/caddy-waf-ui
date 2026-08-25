@@ -1,0 +1,13 @@
+[project]
+name = "caddy-waf-ui"
+version = "1.0.0"
+description = "Sidecar management UI for caddy-waf: WAF mode, CRS exclusions, IP rules and rollback."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "yamllint>=1.38.0",
+    "zizmor>=1.26.1",
+]

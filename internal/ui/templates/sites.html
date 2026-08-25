@@ -1,0 +1,110 @@
+{{define "content"}}
+{{ if .CurrentSite }}
+<!-- Header & Site Selector -->
+<div class="top-banner">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h1 class="banner-title banner-title-base">🛡️ Per-Site WAF Engine Configuration
+        {{ if .CurrentSite.Degraded }}<span class="badge-degraded" title="Unknown mode in overlay header - displayed mode may differ from the state loaded in Caddy" aria-label="Degraded">degraded</span>{{ end }}
+      </h1>
+      <p class="banner-sub">
+        Generates <code>/etc/caddy/ui-managed/waf-{{ slug .CurrentSite.Domain }}.conf</code>
+      </p>
+    </div>
+
+    <form method="GET" action="/" class="domain-select-form">
+      <input type="hidden" name="tab" value="sites">
+      <label class="domain-select-label" for="domain">Select Domain:</label>
+      <select name="domain" id="domain" class="domain-select">
+        {{ range .Sites }}
+          <option value="{{ .Domain }}" {{ if eq .Domain $.CurrentSite.Domain }}selected{{ end }}>{{ .Domain }}</option>
+        {{ end }}
+      </select>
+      <button type="submit" class="secondary btn-compact">Go</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- Left Column: WAF Controls -->
+  <div>
+    <div class="card-box card-box--lg">
+      <h2 class="card-title card-title-spaced">
+        SecRuleEngine Mode
+      </h2>
+
+      <form method="POST" action="/sites/{{ .CurrentSite.Domain }}/mode" data-confirm-off="Switch the WAF mode for {{ .CurrentSite.Domain }} to Off? All rule evaluation will be bypassed for this domain.">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="domain" value="{{ .CurrentSite.Domain }}">
+        <input type="hidden" name="tab" value="sites">
+
+        <div class="mode-options">
+
+          <!-- Mode On -->
+          <label class="mode-option{{ if eq .CurrentSite.Mode "On" }} mode-option--on{{ end }}">
+            <input type="radio" name="mode" value="On" {{ if eq .CurrentSite.Mode "On" }}checked{{ end }}>
+            <strong class="u-text-white">SecRuleEngine On (Enforcing)</strong>
+            <span class="badge-on badge-offset">Active Protection</span>
+            <p class="mode-option-desc">
+              Blocks malicious HTTP requests (403 Forbidden) and logs audit events to the Coraza engine.
+            </p>
+          </label>
+
+          <!-- Mode DetectionOnly -->
+          <label class="mode-option{{ if eq .CurrentSite.Mode "DetectionOnly" }} mode-option--detect{{ end }}">
+            <input type="radio" name="mode" value="DetectionOnly" {{ if eq .CurrentSite.Mode "DetectionOnly" }}checked{{ end }}>
+            <strong class="u-text-white">SecRuleEngine DetectionOnly</strong>
+            <span class="badge-detect badge-offset">Monitoring Mode</span>
+            <p class="mode-option-desc">
+              Evaluates rules and logs matches without blocking traffic. Ideal for testing new rules.
+            </p>
+          </label>
+
+          <!-- Mode Off -->
+          <label class="mode-option{{ if eq .CurrentSite.Mode "Off" }} mode-option--off{{ end }}">
+            <input type="radio" name="mode" value="Off" {{ if eq .CurrentSite.Mode "Off" }}checked{{ end }}>
+            <strong class="u-text-white">SecRuleEngine Off</strong>
+            <span class="badge-off badge-offset">Bypassed</span>
+            <p class="mode-option-desc">
+              Completely bypasses WAF rule engine evaluation for this domain.
+            </p>
+          </label>
+        </div>
+
+        <button type="submit" class="primary btn-apply">
+          💾 Apply Mode
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right Column: Code Inspector -->
+  <div class="grid-span-2">
+    <div class="card-box">
+      <div class="card-box-header">
+        <span class="file-badge">
+          📜 Generated File: <strong>waf-{{ slug .CurrentSite.Domain }}.conf</strong>
+        </span>
+      </div>
+      <div class="code-view">
+        {{ if .WafConf }}
+          <pre><code>{{ .WafConf }}</code></pre>
+        {{ else }}
+          <pre><code># No overlay file yet for this domain.</code></pre>
+        {{ end }}
+      </div>
+      <footer class="code-footer">
+        ℹ️ Imported per slug by managed site blocks: <code>import /etc/caddy/ui-managed/waf-{{ slug .CurrentSite.Domain }}.conf</code> (after <code>ip-rules-{{ slug .CurrentSite.Domain }}.conf</code>).
+      </footer>
+    </div>
+  </div>
+
+</div>
+{{ else }}
+<div class="card-box card-box--padded">
+  <h1 class="banner-title">No Managed Domains</h1>
+  <p class="card-box-empty">No managed domains registered yet.</p>
+</div>
+{{ end }}
+{{end}}

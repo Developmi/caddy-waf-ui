@@ -1,0 +1,96 @@
+{{define "content"}}
+{{ if .CurrentSite }}
+<!-- Header & Selector -->
+<div class="top-banner">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h1 class="banner-title banner-title-base">🔑 IP Access Rules (Denylist / Allowlist)</h1>
+      <p class="banner-sub">
+        Configures <code>SecRule REMOTE_ADDR "@ipMatch ..."</code> directives for domain access control.
+      </p>
+    </div>
+
+    <form method="GET" action="/" class="domain-select-form">
+      <input type="hidden" name="tab" value="iprules">
+      <label class="domain-select-label" for="domain">Select Domain:</label>
+      <select name="domain" id="domain" class="domain-select">
+        {{ range .Sites }}
+          <option value="{{ .Domain }}" {{ if eq .Domain $.CurrentSite.Domain }}selected{{ end }}>{{ .Domain }}</option>
+        {{ end }}
+      </select>
+      <button type="submit" class="secondary btn-compact">Go</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- Left Column: Add IP Rule Form -->
+  <div>
+    <div class="card-box card-box--padded-mb">
+      <h2 class="card-title card-title-spaced">
+        Add IP Address / CIDR Block Rule
+      </h2>
+      <form method="POST" action="/sites/{{ .CurrentSite.Domain }}/iprules">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="domain" value="{{ .CurrentSite.Domain }}">
+        <input type="hidden" name="tab" value="iprules">
+        <label>
+          IP Address or CIDR Block:
+          <input type="text" name="cidr" placeholder="e.g. 198.51.100.44/32 or 10.0.0.0/8" required class="u-mono">
+        </label>
+        <label>
+          Action:
+          <select name="action">
+            <option value="DENY" selected>DENY (403 Forbidden)</option>
+            <option value="ALLOW">ALLOW (Bypass Phase 1 checks)</option>
+          </select>
+        </label>
+        <button type="submit">Save IP Access Directive</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right Column: Active Rules List -->
+  <div>
+    <div class="card-box card-box--padded">
+      <h2 class="card-title card-title-spaced">
+        Active IP Rules for {{ .CurrentSite.Domain }}
+      </h2>
+
+      <h3 class="list-heading-danger">🚫 Denylist Rules ({{ len .ActiveIPRules.Denylist }})</h3>
+      {{ if .ActiveIPRules.Denylist }}
+        <div class="list-col list-col--spaced">
+          {{ range .ActiveIPRules.Denylist }}
+            <div class="rule-chip">
+              <strong class="u-mono u-text-danger">{{ . }}</strong>
+            </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <p class="list-empty-sm">No active IP denylist rules.</p>
+      {{ end }}
+
+      <h3 class="list-heading-ok">✅ Allowlist Rules ({{ len .ActiveIPRules.Allowlist }})</h3>
+      {{ if .ActiveIPRules.Allowlist }}
+        <div class="list-col">
+          {{ range .ActiveIPRules.Allowlist }}
+            <div class="rule-chip">
+              <strong class="u-mono u-text-ok">{{ . }}</strong>
+            </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <p class="list-empty-sm">No active IP allowlist rules.</p>
+      {{ end }}
+    </div>
+  </div>
+
+</div>
+{{ else }}
+<div class="card-box card-box--padded">
+  <h1 class="banner-title">No Managed Domains</h1>
+  <p class="card-box-empty">No managed domains registered yet.</p>
+</div>
+{{ end }}
+{{end}}

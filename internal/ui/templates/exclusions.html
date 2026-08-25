@@ -1,0 +1,129 @@
+{{define "content"}}
+{{ if .CurrentSite }}
+<!-- Header & Domain Selector -->
+<div class="top-banner">
+  <div class="u-flex u-between u-wrap u-gap-lg">
+    <div>
+      <h1 class="banner-title banner-title-base">⚠️ OWASP CRS Exclusion Management</h1>
+      <p class="banner-sub">
+        Generates <code>/etc/caddy/ui-managed/exclusions-{{ slug .CurrentSite.Domain }}.conf</code>
+      </p>
+    </div>
+
+    <form method="GET" action="/" class="domain-select-form">
+      <input type="hidden" name="tab" value="exclusions">
+      <label class="domain-select-label" for="domain">Select Domain:</label>
+      <select name="domain" id="domain" class="domain-select">
+        {{ range .Sites }}
+          <option value="{{ .Domain }}" {{ if eq .Domain $.CurrentSite.Domain }}selected{{ end }}>{{ .Domain }}</option>
+        {{ end }}
+      </select>
+      <button type="submit" class="secondary btn-compact">Go</button>
+    </form>
+  </div>
+</div>
+
+<!-- Common OWASP CRS False-Positive Rule Catalog -->
+<div class="card-box card-box--padded">
+  <h2 class="card-title card-title-spaced">
+    Common OWASP CRS False-Positive Catalog (One-Click Tune)
+  </h2>
+  <div class="catalog-grid">
+    {{ range .CRSCatalog }}
+      <div class="catalog-card">
+        <div>
+          <div class="u-flex u-between">
+            <strong class="catalog-rule">Rule ID: {{ .RuleID }}</strong>
+            <span class="badge-tag">{{ .Category }}</span>
+          </div>
+          <div class="catalog-name">{{ .Name }}</div>
+          <div class="catalog-desc">{{ .Description }}</div>
+        </div>
+
+        <form method="POST" action="/sites/{{ $.CurrentSite.Domain }}/exclusions" class="m-0">
+          <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+          <input type="hidden" name="domain" value="{{ $.CurrentSite.Domain }}">
+          <input type="hidden" name="tab" value="exclusions">
+          <input type="hidden" name="ruleId" value="{{ .RuleID }}">
+          <label class="param-label">
+            Optional query param scope (ARGS:param)
+            <input type="text" name="param" placeholder="e.g. q" class="param-input">
+          </label>
+          <button type="submit" class="btn-sim btn-block">+ Add Exclusion for {{ $.CurrentSite.Domain }}</button>
+        </form>
+      </div>
+    {{ end }}
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- Add Custom Exclusion Form & Active Rules List -->
+  <div>
+    <!-- Add Custom Form -->
+    <div class="card-box card-box--padded-mb">
+      <h2 class="card-title card-title-spaced">
+        Add Custom SecRuleRemoveById Directive
+      </h2>
+      <form method="POST" action="/sites/{{ .CurrentSite.Domain }}/exclusions">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="domain" value="{{ .CurrentSite.Domain }}">
+        <input type="hidden" name="tab" value="exclusions">
+        <label>
+          OWASP Rule ID:
+          <input type="number" name="ruleId" placeholder="e.g. 942100" required class="u-mono">
+        </label>
+        <label>
+          Optional Query Param Scope (ARGS:param):
+          <input type="text" name="param" placeholder="e.g. q (leave blank for URI-level)" class="u-mono">
+        </label>
+        <button type="submit">Add Exclusion Directive</button>
+      </form>
+    </div>
+
+    <!-- Active Exclusions List -->
+    <div class="card-box card-box--padded">
+      <h2 class="card-title card-title-spaced">
+        Active Exclusions for {{ .CurrentSite.Domain }} ({{ len .ActiveExclusions }})
+      </h2>
+      {{ if .ActiveExclusions }}
+        <div class="list-col list-col--wide">
+          {{ range .ActiveExclusions }}
+            <div class="rule-chip rule-chip--wide">
+              <strong class="u-mono u-text-amber">Rule ID: {{ .Value }}</strong>
+              {{ if .Param }}<span class="badge-tag badge-offset-sm">param: {{ .Param }}</span>{{ end }}
+            </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <p class="list-empty">No CRS exclusions active. All OWASP CRS rules are enforced.</p>
+      {{ end }}
+    </div>
+  </div>
+
+  <!-- Generated Exclusions Code Preview -->
+  <div>
+    <div class="card-box">
+      <div class="card-box-header">
+        <span class="file-badge">
+          📜 Generated File: <strong>exclusions-{{ slug .CurrentSite.Domain }}.conf</strong>
+        </span>
+      </div>
+      <div class="code-view">
+        {{ if .ExclusionsConf }}
+          <pre><code>{{ .ExclusionsConf }}</code></pre>
+        {{ else }}
+          <pre><code># No overlay file yet for this domain.</code></pre>
+        {{ end }}
+      </div>
+    </div>
+  </div>
+
+</div>
+{{ else }}
+<div class="card-box card-box--padded">
+  <h1 class="banner-title">No Managed Domains</h1>
+  <p class="card-box-empty">No managed domains registered yet.</p>
+</div>
+{{ end }}
+{{end}}

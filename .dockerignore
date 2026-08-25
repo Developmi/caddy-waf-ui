@@ -1,0 +1,62 @@
+# Secrets and environments (never enter the build context; the example does)
+.env
+.env.*
+!.env.example
+
+# Local CodeGraph index
+.codegraph/
+
+# Git metadata
+.git/
+.gitignore
+
+# Documentation and tests (not needed at build or runtime)
+*.md
+tests/
+.github/
+
+# Temporary files and build artifacts (root only)
+*.tmp
+/dist/
+/bin/
+
+# Logs (root only: /logs/ does not touch internal/logs/)
+*.log
+/logs/
+
+# Local backups (root only)
+/backups/
+*.bak
+*.backup
+
+# Generated binary (the builder compiles it inside the context)
+caddy-waf-ui
+
+# Signing and supply chain material
+cosign.key
+*.attestation
+sbom.*.json
+
+# Compose and Docker metadata
+Dockerfile*
+docker-compose*.yml
+
+# Editors / IDEs / internal tooling
+.idea/
+.vscode/
+.atl/
+openspec/
+
+# Python tooling (build context size): venv, uv lockfile, pyproject (not needed for the Go build)
+.venv/
+uv.lock
+pyproject.toml
+
+# Local tool binaries (actionlint, hadolint, golangci-lint, govulncheck - ~113MB)
+tools/
+
+# EnvSitter local state
+.envsitter/
+
+# macOS
+.DS_Store

@@ -1,0 +1,74 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caddy WAF UI • Sidecar WAF Management</title>
+  <!-- Pico CSS v2.1.1 self-hosted (no CDN) -->
+  <link rel="stylesheet" href="/static/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <!-- Skip link (WCAG 2.4.1): primer elemento del body, visible al foco -->
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Top Header Navigation -->
+  <header class="container header-container">
+    <div class="header-nav">
+      <div class="navbar-brand">
+        <span class="logo-badge">C</span>
+        <span>Caddy WAF UI</span>
+        <span class="badge-tag">v1.0.0</span>
+      </div>
+
+      <div class="header-actions">
+        <form method="POST" action="/logout" class="m-0">
+          <input type="hidden" name="csrf" value="{{ .CSRF }}">
+          <button class="secondary btn-compact">Sign out</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tab Navigation Bar -->
+    <nav class="nav-tabs" aria-label="Main navigation">
+      <a href="?tab=overview" {{ if eq .ActiveTab "overview" }}class="active" aria-current="page"{{ end }}>🛡️ Overview</a>
+      <a href="?tab=sites" {{ if eq .ActiveTab "sites" }}class="active" aria-current="page"{{ end }}>🌐 Domains &amp; WAF</a>
+      <a href="?tab=exclusions" {{ if eq .ActiveTab "exclusions" }}class="active" aria-current="page"{{ end }}>⚠️ CRS Exclusions</a>
+      <a href="?tab=iprules" {{ if eq .ActiveTab "iprules" }}class="active" aria-current="page"{{ end }}>🔑 IP Rules</a>
+      <a href="?tab=logs" {{ if eq .ActiveTab "logs" }}class="active" aria-current="page"{{ end }}>📊 Log Explorer</a>
+      <a href="?tab=rollback" {{ if eq .ActiveTab "rollback" }}class="active" aria-current="page"{{ end }}>🔄 Rollback &amp; History</a>
+    </nav>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container" id="main">
+    {{ if .Flash }}
+      {{ if eq .FlashType "error" }}
+        <div class="toast-notice toast-notice--error" role="alert" aria-live="assertive">
+          <span>⚠️ {{ .Flash }}</span>
+          <button type="button" class="toast-dismiss" aria-label="Dismiss notification" data-dismiss-toast>✕</button>
+        </div>
+      {{ else }}
+        <div class="toast-notice" role="status" aria-live="polite">
+          <span>✅ {{ .Flash }}</span>
+          <button type="button" class="toast-dismiss" aria-label="Dismiss notification" data-dismiss-toast>✕</button>
+        </div>
+      {{ end }}
+    {{ end }}
+
+    {{ template "content" . }}
+  </main>
+
+  <!-- Footer -->
+  <footer class="container page-footer">
+    <div class="page-footer-inner">
+      <div>
+        Caddy WAF UI sidecar • overlay target: <code>/etc/caddy/ui-managed/*.conf</code>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
+{{end}}

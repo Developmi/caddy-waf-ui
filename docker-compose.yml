@@ -1,0 +1,114 @@
+services:
+  caddy-waf:
+    image: ${CADDY_WAF_IMAGE:-ghcr.io/developmi/caddy-waf:v3.3.2}
+    container_name: caddy-waf
+    user: "1337:1337"
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Mount your custom Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Persistent data for certificates
+      - caddy_data:/data
+      # Configuration storage
+      - caddy_config:/config
+      # Overlays de la UI (waf/ip-rules/exclusions) legibles por Caddy (:ro).
+      # Los crea automáticamente ui-config-init (solo los faltantes, nunca
+      # sobrescribe); prod: bind mounts owner 1337:1337 (INTEGRATION.md)
+      - caddy-ui-config:/etc/caddy/ui-managed:ro
+    environment:
+      # ACME email for Let's Encrypt certificates
+      - ACME_EMAIL=${ACME_EMAIL:-}
+      # Site address used by Caddyfile (localhost by default)
+      - SITE_ADDRESS=${SITE_ADDRESS:-localhost}
+      # Backend upstream used by Caddyfile
+      - BACKEND_UPSTREAM=${BACKEND_UPSTREAM:-example-app:80}
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep caddy >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      # El Caddyfile importa overlays de ui-managed: crearlos antes de arrancar
+      # Caddy (idempotente, solo faltantes) evita el crash-loop tras recrear
+      # los volúmenes (down -v / primer arranque).
+      ui-config-init:
+        condition: service_completed_successfully
+    networks:
+      - caddy-network
+
+  # Inicializador de overlays ui-managed. Corre una sola vez (restart: "no")
+  # con la misma imagen y usuario (uiuser) que la UI: los archivos que crea
+  # quedan con ownership de la UI, que puede sobrescribirlos siempre. Nunca
+  # sobrescribe configs existentes - solo crea los imports que faltan.
+  ui-config-init:
+    build: .
+    container_name: ui-config-init
+    restart: "no"
+    command: ["sh", "/init.sh"]
+    volumes:
+      - ./scripts/init-ui-managed.sh:/init.sh:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.example:/etc/caddy/Caddyfile.example:ro
+      - caddy-ui-config:/ui-managed:rw
+
+  # Example backend service (optional)
+  # Pin exacto (no :latest): mismo criterio que la imagen gestionada (v3.3.2).
+  example-app:
+    image: ${EXAMPLE_APP_IMAGE:-containous/whoami:v1.5.0}
+    container_name: example-app
+    restart: unless-stopped
+    networks:
+      - caddy-network
+
+  caddy-waf-ui:
+    build: .
+    container_name: caddy-waf-ui
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    ports:
+      # Expuesto solo en localhost por seguridad
+      - "127.0.0.1:8080:8080"
+    networks:
+      - caddy-network
+    volumes:
+      # Volúmenes con permisos de escritura exclusivos para la UI
+      - caddy-ui-config:/ui-managed:rw
+      - caddy-ui-backups:/backups:rw
+      # Montaje de solo lectura para consumir los logs de Caddy
+      - caddy_data:/data:ro
+      # Caddyfile base de solo lectura, necesario para el reload real (POST /load)
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    env_file: .env
+    depends_on:
+      caddy-waf:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy-ui-config:
+  caddy-ui-backups:
+
+networks:
+  caddy-network:
+    driver: bridge

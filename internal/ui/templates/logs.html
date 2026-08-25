@@ -1,0 +1,90 @@
+{{define "content"}}
+<!-- Header & Controls -->
+<div class="top-banner">
+  <div>
+    <h1 class="banner-title banner-title-base">📊 Coraza Audit Log Inspector</h1>
+    <p class="banner-sub">
+      Recent security event entries from <code>/data/logs/coraza-audit.log</code>
+    </p>
+  </div>
+
+  <!-- Search & Action Filters -->
+  <hr class="hr-soft">
+
+  <form method="GET" action="/" class="filter-bar">
+    <input type="hidden" name="tab" value="logs">
+    <div class="filter-field">
+      <label class="visually-hidden" for="search">Search logs</label>
+      <input type="text" name="search" id="search" value="{{ .LogSearch }}" placeholder="Search IP, URI, Rule ID, or Message..." class="filter-input">
+    </div>
+    <div class="m-0">
+      <label class="visually-hidden" for="actionFilter">Action filter</label>
+      <select name="actionFilter" id="actionFilter" class="filter-select">
+        <option value="" {{ if eq .ActionFilter "" }}selected{{ end }}>All Actions (Blocked &amp; Detected)</option>
+        <option value="BLOCKED" {{ if eq .ActionFilter "BLOCKED" }}selected{{ end }}>BLOCKED Only</option>
+        <option value="DETECTED" {{ if eq .ActionFilter "DETECTED" }}selected{{ end }}>DETECTED Only</option>
+      </select>
+    </div>
+    <button type="submit" class="secondary btn-filter">Search Logs</button>
+  </form>
+</div>
+
+<!-- Log Table -->
+<div class="card-box">
+  <div class="table-scroll">
+    <table class="table-compact u-text-md">
+      <thead>
+        <tr>
+          <th scope="col">Timestamp</th>
+          <th scope="col">Action</th>
+          <th scope="col">Rule ID</th>
+          <th scope="col">Client IP</th>
+          <th scope="col">URI Request</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ if .Logs }}
+          {{ range .Logs }}
+            <tr>
+              <td class="cell-mono-muted">
+                {{ date .Timestamp "2006-01-02 15:04:05" }}
+              </td>
+              <td>
+                <span class="{{ if eq .Action "BLOCKED" }}badge-deny{{ else }}badge-detect{{ end }}">
+                  {{ .Action }}
+                </span>
+              </td>
+              <td class="cell-rule">
+                {{ .RuleID }}
+              </td>
+              <td class="cell-client">
+                {{ .Client }}
+              </td>
+              <td class="cell-uri" title="{{ .URI }}">{{ .URI }}</td>
+            </tr>
+          {{ end }}
+        {{ else }}
+          <tr>
+            <td colspan="5" class="table-empty">
+              No Coraza audit logs found matching your filter search.
+            </td>
+          </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Pagination -->
+{{ if or .LogPrevURL .LogNextURL }}
+<div class="pager">
+  <div>
+    {{ if .LogPrevURL }}<a href="{{ .LogPrevURL }}" class="secondary pager-link">← Prev</a>{{ else }}<span class="u-text-dim">← Prev</span>{{ end }}
+  </div>
+  <div>Page {{ .LogPage }} of {{ .LogPages }}</div>
+  <div>
+    {{ if .LogNextURL }}<a href="{{ .LogNextURL }}" class="secondary pager-link">Next →</a>{{ else }}<span class="u-text-dim">Next →</span>{{ end }}
+  </div>
+</div>
+{{ end }}
+{{end}}
