@@ -1,6 +1,8 @@
 # Build, scan, sign and push pipeline for the caddy-waf-ui multi-stage Go
 # Dockerfile (golang:1.26.6-alpine builder -> alpine:3.23.5 runtime, USER uiuser).
 # Pull requests: build + Trivy scan of both architectures (no push).
+# Main branch pushes: build + Trivy scan + SARIF upload so results reach the
+# Security tab even when the gate fails (CI-3); no image is pushed.
 # Tags (v*): push multi-arch, SBOM, keyless Cosign signature + CycloneDX
 # attestation, SLSA provenance, with rollback of the published version if any
 # post-push step fails so a broken tag is never left unsigned.
@@ -9,6 +11,7 @@ name: Build, Scan, Sign, and Push
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   pull_request:
     branches: [main]
@@ -125,7 +128,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-scan-arm64"
 
       - name: Upload Trivy SARIF (amd64)
-        if: (!cancelled()) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
@@ -133,7 +136,7 @@ jobs:
           category: trivy
 
       - name: Upload Trivy SARIF (arm64)
-        if: (!cancelled()) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
