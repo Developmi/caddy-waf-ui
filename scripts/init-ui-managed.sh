@@ -1,22 +1,22 @@
 #!/bin/sh
-# Inicializador de overlays ui-managed para el stack (servicio ui-config-init).
+# ui-managed overlays initializer for the stack (ui-config-init service).
 #
-# El Caddyfile importa overlays per-slug desde /etc/caddy/ui-managed/*.conf
-# (p.ej. ip-rules-{slug}.conf, waf-{slug}.conf). Esos archivos solo los
-# escribe la UI en runtime, pero viven en el volumen named caddy-ui-config:
-# si el volumen se recrea (down -v / primer arranque), Caddy no arranca por
-# imports faltantes. Este init repara esa dependencia de arranque.
+# The Caddyfile imports per-slug overlays from /etc/caddy/ui-managed/*.conf
+# (e.g. ip-rules-{slug}.conf, waf-{slug}.conf). Those files are only written
+# by the UI at runtime, but they live in the caddy-ui-config named volume:
+# if the volume is recreated (down -v / first boot), Caddy fails to start
+# because of missing imports. This init repairs that boot dependency.
 #
-# Reglas de diseño (importantes para producción):
-#   1. Idempotente: crea SOLO los archivos faltantes ([ -f ] || crear).
-#   2. NUNCA sobrescribe configs existentes - los overlays de dominios/apps
-#      en producción son datos de runtime y se preservan intactos.
-#   3. Descubre los imports desde el Caddyfile montado (no hardcodea nada):
-#      en producción recrea únicamente los overlays de los dominios/apps que
-#      el Caddyfile real declara.
-#   4. Corre como uiuser (mismo uid que la UI): los archivos creados quedan
-#      con ownership de la UI, que puede sobrescribirlos siempre (atomic
-#      write vía rename). Caddy (uid 1337) los lee por ser world-readable.
+# Design rules (important for production):
+#   1. Idempotent: creates ONLY the missing files ([ -f ] || create).
+#   2. NEVER overwrites existing configs - the domain/app overlays in
+#      production are runtime data and are preserved intact.
+#   3. Discovers the imports from the mounted Caddyfile (nothing hardcoded):
+#      in production it recreates only the overlays of the domains/apps that
+#      the real Caddyfile declares.
+#   4. Runs as uiuser (same uid as the UI): the created files keep the UI's
+#      ownership, so the UI can always overwrite them (atomic write via
+#      rename). Caddy (uid 1337) reads them because they are world-readable.
 set -eu
 
 SRC=/etc/caddy/Caddyfile

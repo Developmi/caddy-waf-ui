@@ -15,34 +15,34 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/config"
 )
 
-// Acciones normalizadas que consume la UI (D7): la plantilla logs.html solo
-// conoce BLOCKED/DETECTED.
+// Normalized actions consumed by the UI (D7): the logs.html template only
+// knows BLOCKED/DETECTED.
 const (
 	actionBlocked  = "BLOCKED"
 	actionDetected = "DETECTED"
 )
 
-// defaultPageSize es el tamaño de página por defecto del explorador (D7).
+// defaultPageSize is the default page size of the explorer (D7).
 const defaultPageSize = 50
 
-// maxTailBytes acota la ventana de lectura a los últimos 2 MiB del audit log
-// (D7): nunca se lee el archivo completo. Es una variable para que los tests
-// puedan achicarla sin generar fixtures enormes.
+// maxTailBytes bounds the read window to the last 2 MiB of the audit log
+// (D7): the whole file is never read. It is a variable so tests can shrink
+// it without generating huge fixtures.
 var maxTailBytes int64 = 2 << 20
 
-// layoutApache es el formato de timestamp del audit log de Coraza
-// ("02/Jan/2006:15:04:20 -0700", ver internal/auditlog/auditlog.go).
+// layoutApache is the timestamp format of the Coraza audit log
+// ("02/Jan/2006:15:04:20 -0700", see internal/auditlog/auditlog.go).
 const layoutApache = "02/Jan/2006:15:04:05 -0700"
 
-// Options controla el filtrado y la paginación de Read.
+// Options controls the filtering and pagination of Read.
 type Options struct {
-	Search   string // búsqueda case-insensitive sobre client/uri/ruleID/message
-	Action   string // "BLOCKED", "DETECTED" o "" (todos)
-	Page     int    // 1-based; valores <= 0 se tratan como 1
+	Search   string // case-insensitive search over client/uri/ruleID/message
+	Action   string // "BLOCKED", "DETECTED" or "" (all)
+	Page     int    // 1-based; values <= 0 are treated as 1
 	PageSize int    // <= 0 → defaultPageSize (50)
 }
 
-// Page es una página de entradas más el contexto de paginación.
+// Page is a page of entries plus the pagination context.
 type Page struct {
 	Entries  []AuditEntry
 	Page     int
@@ -51,21 +51,21 @@ type Page struct {
 	Pages    int
 }
 
-// AuditLogPath devuelve la ruta configurada del audit log de Coraza
-// (CADDY_UI_AUDIT_LOG; default /data/logs/coraza-audit.log - D7). El valor
-// vive centralizado en config (hallazgo J5-3); esta función se conserva como
-// delegado para no romper los call sites que la usan como API del paquete.
+// AuditLogPath returns the configured path of the Coraza audit log
+// (CADDY_UI_AUDIT_LOG; default /data/logs/coraza-audit.log - D7). The value
+// lives centralized in config (finding J5-3); this function is kept as a
+// delegate so the call sites that use it as a package API do not break.
 func AuditLogPath() string {
 	return config.AuditLogPath()
 }
 
-// Read lee la ventana final (2 MiB) del audit log de Coraza, parsea los
-// registros, filtra por search/action y pagina el resultado (más recientes
-// primero). Soporta dos formatos: JSONL con newlines (el loop de ReadBytes)
-// y objetos JSON concatenados SIN newlines (el plugin caddy-waf v3.3.1 hace
-// append sin "\n"; json.Decoder los lee de a uno). Un registro que no parsea
-// se registra con slog.Error (spec audit-logs: nunca se descarta en
-// silencio) y la lectura continúa con el resto.
+// Read reads the tail window (2 MiB) of the Coraza audit log, parses the
+// records, filters by search/action and paginates the result (newest first).
+// It supports two formats: JSONL with newlines (the ReadBytes loop) and
+// concatenated JSON objects WITHOUT newlines (the caddy-waf plugin v3.3.1
+// appends without "\n"; json.Decoder reads them one at a time). A record that
+// fails to parse is logged with slog.Error (spec audit-logs: never silently
+// discarded) and reading continues with the rest.
 func Read(path string, opts Options) (Page, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -80,8 +80,8 @@ func Read(path string, opts Options) (Page, error) {
 
 	entries := make([]AuditEntry, 0, 64)
 	if bytes.IndexByte(data, '\n') < 0 && len(bytes.TrimSpace(data)) > 0 {
-		// Stream sin newlines (plugin caddy-waf v3.3.1): objetos JSON
-		// concatenados, un objeto por transacción detectada.
+		// Stream without newlines (caddy-waf plugin v3.3.1): concatenated
+		// JSON objects, one object per detected transaction.
 		dec := json.NewDecoder(bytes.NewReader(data))
 		for {
 			var l auditLine
@@ -90,15 +90,15 @@ func Read(path string, opts Options) (Page, error) {
 				break
 			}
 			if err != nil {
-				// Fail-loud: tras un error de decode no se puede volver a
-				// sincronizar el límite entre objetos; se loguea y se corta.
-				slog.Error("audit log sin newlines no parseable", "path", path, "error", err)
+				// Fail-loud: after a decode error the boundary between
+				// objects cannot be re-synced; it is logged and cut short.
+				slog.Error("unparseable newline-less audit log", "path", path, "error", err)
 				break
 			}
 			entry, perr := entryFromLine(l)
 			if perr != nil {
-				// Fail-loud: formato desconocido nunca se ignora.
-				slog.Error("entrada no parseable del audit log", "path", path, "error", perr)
+				// Fail-loud: unknown formats are never ignored.
+				slog.Error("unparseable audit log entry", "path", path, "error", perr)
 				continue
 			}
 			if matches(entry, opts.Search, opts.Action) {
@@ -106,7 +106,7 @@ func Read(path string, opts Options) (Page, error) {
 			}
 		}
 	} else {
-		// JSONL plano: una entrada por línea.
+		// Plain JSONL: one entry per line.
 		reader := bufio.NewReader(bytes.NewReader(data))
 		lineNum := 0
 		for {
@@ -115,8 +115,8 @@ func Read(path string, opts Options) (Page, error) {
 			if len(bytes.TrimSpace(line)) > 0 {
 				entry, perr := parseLine(line)
 				if perr != nil {
-					// Fail-loud: formato desconocido nunca se ignora.
-					slog.Error("línea no parseable del audit log", "path", path, "line", lineNum, "error", perr)
+					// Fail-loud: unknown formats are never ignored.
+					slog.Error("unparseable audit log line", "path", path, "line", lineNum, "error", perr)
 				} else if matches(entry, opts.Search, opts.Action) {
 					entries = append(entries, entry)
 				}
@@ -130,17 +130,17 @@ func Read(path string, opts Options) (Page, error) {
 		}
 	}
 
-	// El log crece hacia el final: lo más reciente primero.
+	// The log grows towards the end: newest first.
 	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
 		entries[i], entries[j] = entries[j], entries[i]
 	}
 	return paginate(entries, opts.Page, opts.PageSize), nil
 }
 
-// tailWindow devuelve los últimos maxTailBytes del archivo. Si el archivo es
-// más chico se lee completo; si la ventana corta una línea por la mitad, la
-// primera línea de la ventana se descarta (puede estar incompleta; lo
-// reciente, que vive al final, queda intacto).
+// tailWindow returns the last maxTailBytes of the file. If the file is
+// smaller it is read in full; if the window cuts a line in half, the first
+// line of the window is discarded (it may be incomplete; the recent data,
+// which lives at the end, stays intact).
 func tailWindow(f *os.File) ([]byte, error) {
 	stat, err := f.Stat()
 	if err != nil {
@@ -160,10 +160,10 @@ func tailWindow(f *os.File) ([]byte, error) {
 	return buf, nil
 }
 
-// auditLine es la forma JSON de una entrada del audit log de Coraza
-// (formats_json.go de coraza v3). El campo transaction.action no lo emite
-// coraza v3 (la acción vive en los actionsets y en is_interrupted), pero se
-// acepta por compatibilidad con formatos legacy o escritores de terceros.
+// auditLine is the JSON shape of a Coraza audit log entry (formats_json.go
+// of coraza v3). coraza v3 does not emit the transaction.action field (the
+// action lives in the actionsets and in is_interrupted), but it is accepted
+// for compatibility with legacy formats or third-party writers.
 type auditLine struct {
 	Transaction auditTransaction `json:"transaction"`
 	Messages    []auditMessage   `json:"messages"`
@@ -192,13 +192,13 @@ type auditMsgData struct {
 	Msg string `json:"msg"`
 }
 
-// entryFromLine mapea una auditLine ya deserializada a AuditEntry. Sin
-// transaction.id devuelve error: el lector lo registra (fail-loud). Es el
-// mapeo compartido por parseLine (JSONL) y el branch Decoder del stream sin
-// newlines del plugin caddy-waf v3.3.1.
+// entryFromLine maps an already deserialized auditLine to AuditEntry.
+// Without a transaction.id it returns an error: the reader logs it
+// (fail-loud). It is the mapping shared by parseLine (JSONL) and the Decoder
+// branch of the newline-less stream of the caddy-waf plugin v3.3.1.
 func entryFromLine(l auditLine) (AuditEntry, error) {
 	if l.Transaction.ID == "" {
-		return AuditEntry{}, fmt.Errorf("línea sin transaction.id (formato desconocido)")
+		return AuditEntry{}, fmt.Errorf("line without transaction.id (unknown format)")
 	}
 
 	entry := AuditEntry{
@@ -220,9 +220,9 @@ func entryFromLine(l auditLine) (AuditEntry, error) {
 	return entry, nil
 }
 
-// parseLine convierte una línea JSONL a AuditEntry. Cualquier forma que no
-// sea una entrada de Coraza (JSON inválido o sin transaction.id) devuelve
-// error: el lector lo registra con el número de línea (fail-loud).
+// parseLine converts a JSONL line to an AuditEntry. Any shape that is not a
+// Coraza entry (invalid JSON or without transaction.id) returns an error: the
+// reader logs it with the line number (fail-loud).
 func parseLine(raw []byte) (AuditEntry, error) {
 	var l auditLine
 	if err := json.Unmarshal(raw, &l); err != nil {
@@ -231,8 +231,8 @@ func parseLine(raw []byte) (AuditEntry, error) {
 	return entryFromLine(l)
 }
 
-// actionsetsOf extrae los actionsets de los mensajes para la clasificación
-// de la acción disruptiva (D7: deny/drop/redirect → BLOCKED; pass/allow →
+// actionsetsOf extracts the actionsets from the messages for the disruptive
+// action classification (D7: deny/drop/redirect → BLOCKED; pass/allow →
 // DETECTED).
 func actionsetsOf(messages []auditMessage) []string {
 	sets := make([]string, 0, len(messages))
@@ -242,10 +242,10 @@ func actionsetsOf(messages []auditMessage) []string {
 	return sets
 }
 
-// classify determina la acción normalizada de una entrada. Prioridad: campo
-// action explícito (legacy) > verbos disruptivos en los actionsets >
-// is_interrupted > DETECTED por defecto. allow se considera DETECTED aunque
-// interrumpa el procesamiento (D7: pass/allow → DETECTED).
+// classify determines the normalized action of an entry. Priority: explicit
+// action field (legacy) > disruptive verbs in the actionsets >
+// is_interrupted > DETECTED by default. allow is considered DETECTED even if
+// it interrupts processing (D7: pass/allow → DETECTED).
 func classify(txAction string, interrupted bool, actionsets []string) string {
 	switch strings.ToLower(strings.TrimSpace(txAction)) {
 	case "deny", "drop", "redirect":
@@ -267,9 +267,9 @@ func classify(txAction string, interrupted bool, actionsets []string) string {
 	return actionDetected
 }
 
-// disruptiveVerb devuelve el primer verbo de acción disruptiva de un
-// actionset de Coraza (lista de acciones separadas por comas), o "".
-// redirect admite valor ("redirect:https://..."), el resto son verbos sueltos.
+// disruptiveVerb returns the first disruptive action verb of a Coraza
+// actionset (comma-separated action list), or "". redirect accepts a value
+// ("redirect:https://..."), the rest are bare verbs.
 func disruptiveVerb(actionset string) string {
 	for _, token := range strings.Split(actionset, ",") {
 		token = strings.Trim(strings.TrimSpace(token), "'\"")
@@ -283,8 +283,8 @@ func disruptiveVerb(actionset string) string {
 	return ""
 }
 
-// matches decide si una entrada pasa los filtros: action exacta
-// (case-insensitive) y search como substring case-insensitive sobre
+// matches decides whether an entry passes the filters: exact action
+// (case-insensitive) and search as a case-insensitive substring over
 // client/uri/ruleID/message.
 func matches(e AuditEntry, search, action string) bool {
 	if action != "" && !strings.EqualFold(e.Action, action) {
@@ -303,9 +303,9 @@ func matches(e AuditEntry, search, action string) bool {
 	return false
 }
 
-// paginate corta la lista filtrada según page/pageSize (1-based) y devuelve
-// el contexto de paginación. Páginas fuera de rango se recortan a la última;
-// Entries nunca es nil (el template usa {{ if .Logs }}).
+// paginate slices the filtered list by page/pageSize (1-based) and returns
+// the pagination context. Out-of-range pages are clamped to the last one;
+// Entries is never nil (the template uses {{ if .Logs }}).
 func paginate(entries []AuditEntry, page, pageSize int) Page {
 	if entries == nil {
 		entries = []AuditEntry{}
@@ -338,9 +338,10 @@ func paginate(entries []AuditEntry, page, pageSize int) Page {
 	return Page{Entries: entries[start:end], Page: page, PageSize: pageSize, Total: total, Pages: pages}
 }
 
-// normalizeTimestamp convierte el timestamp de Coraza (formato Apache) a
-// RFC3339 para que el helper date de las plantillas pueda formatearlo; si no
-// se reconoce, conserva el valor crudo. Sin timestamp usa unix_timestamp.
+// normalizeTimestamp converts the Coraza timestamp (Apache format) to
+// RFC3339 so the date helper of the templates can format it; if it is not
+// recognized, it keeps the raw value. Without a timestamp it uses
+// unix_timestamp.
 func normalizeTimestamp(ts string, unix int64) string {
 	if ts != "" {
 		if parsed, err := time.Parse(layoutApache, ts); err == nil {

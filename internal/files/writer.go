@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 )
 
-// AtomicWrite asegura que un archivo se escriba por completo antes de ser visible para Caddy.
-// Escribe en un archivo temporal único (CreateTemp) y luego ejecuta un renombre atómico.
-// El temporal se elimina si la escritura o el rename fallan (nunca queda .tmp stale).
+// AtomicWrite ensures a file is fully written before becoming visible to
+// Caddy. It writes to a unique temp file (CreateTemp) and then performs an
+// atomic rename. The temp file is removed if the write or the rename fails
+// (no stale .tmp ever remains).
 func AtomicWrite(path string, content []byte) (err error) {
 	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
 	if err != nil {
@@ -15,16 +16,17 @@ func AtomicWrite(path string, content []byte) (err error) {
 	}
 	tmpPath := tmp.Name()
 
-	// Si algo falla antes del rename, eliminar el temporal.
+	// If anything fails before the rename, remove the temp file.
 	defer func() {
 		if err != nil {
 			_ = os.Remove(tmpPath)
 		}
 	}()
 
-	// Permisos 0644 (world-readable) por diseño (enmienda A, R4-006): los overlays
-	// no contienen secretos y Caddy corre como UID 1337, que debe poder leerlos.
-	// CreateTemp crea con 0600, por eso se ajusta explícitamente antes del rename.
+	// 0644 permissions (world-readable) by design (amendment A, R4-006): the
+	// overlays contain no secrets and Caddy runs as UID 1337, which must be
+	// able to read them. CreateTemp creates with 0600, so it is explicitly
+	// adjusted before the rename.
 	if err = tmp.Chmod(0644); err != nil {
 		_ = tmp.Close()
 		return err
@@ -37,6 +39,6 @@ func AtomicWrite(path string, content []byte) (err error) {
 		return err
 	}
 
-	// os.Rename es atómico en Linux si es el mismo sistema de archivos.
+	// os.Rename is atomic on Linux when it is the same filesystem.
 	return os.Rename(tmpPath, path)
 }

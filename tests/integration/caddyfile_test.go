@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// repoRoot resuelve la raíz del repo desde el directorio del paquete de
-// tests (go test ejecuta con cwd = tests/integration).
+// repoRoot resolves the repo root from the directory of the test package
+// (go test runs with cwd = tests/integration).
 func repoRoot() string {
 	return filepath.Join("..", "..")
 }
@@ -18,22 +18,23 @@ func readRepoFile(t *testing.T, rel string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(repoRoot(), rel))
 	if err != nil {
-		t.Fatalf("fallo leyendo %s: %v", rel, err)
+		t.Fatalf("failed reading %s: %v", rel, err)
 	}
 	return data
 }
 
-// caddyfileExists reporta si el Caddyfile local existe. Está gitignored por
-// diseño (el repositorio trackea solo Caddyfile.example), así que en un clone
-// fresco no existe y los tests deben degradar al ejemplo canónico.
+// caddyfileExists reports whether the local Caddyfile exists. It is
+// gitignored by design (the repository tracks only Caddyfile.example), so in
+// a fresh clone it does not exist and the tests must fall back to the
+// canonical example.
 func caddyfileExists() bool {
 	_, err := os.Stat(filepath.Join(repoRoot(), "Caddyfile"))
 	return err == nil
 }
 
-// readCaddyfile devuelve el Caddyfile de referencia: el local si existe, o el
-// ejemplo canónico (Caddyfile.example) en su ausencia. Ambos deben ser
-// byte-idénticos (D6), verificado cuando el local está presente.
+// readCaddyfile returns the reference Caddyfile: the local one if it exists,
+// or the canonical example (Caddyfile.example) in its absence. Both must be
+// byte-identical (D6), verified when the local one is present.
 func readCaddyfile(t *testing.T) []byte {
 	t.Helper()
 	if caddyfileExists() {
@@ -42,8 +43,8 @@ func readCaddyfile(t *testing.T) []byte {
 	return readRepoFile(t, "Caddyfile.example")
 }
 
-// siteBlock devuelve el texto del bloque de sitio que abre con siteLine
-// (p.ej. "api.example.com {"), hasta su `}` de cierre a columna 0.
+// siteBlock returns the text of the site block that opens with siteLine
+// (e.g. "api.example.com {"), up to its closing "}" at column 0.
 func siteBlock(t *testing.T, content, siteLine string) string {
 	t.Helper()
 	lines := strings.Split(content, "\n")
@@ -55,23 +56,23 @@ func siteBlock(t *testing.T, content, siteLine string) string {
 		}
 	}
 	if start == -1 {
-		t.Fatalf("bloque %q no encontrado en el Caddyfile", siteLine)
+		t.Fatalf("block %q not found in the Caddyfile", siteLine)
 	}
 	for i := start + 1; i < len(lines); i++ {
 		if lines[i] == "}" {
 			return strings.Join(lines[start:i+1], "\n")
 		}
 	}
-	t.Fatalf("bloque %q sin cierre a columna 0", siteLine)
+	t.Fatalf("block %q without a close at column 0", siteLine)
 	return ""
 }
 
-// TestCaddyfileMatchesExampleByteIdentical: los dos Caddyfiles deben ser
-// byte-idénticos (D6) - el ejemplo es autocontenido (los usuarios lo copian)
-// y la sincronía está enforced por este test, no por convención.
+// TestCaddyfileMatchesExampleByteIdentical: both Caddyfiles must be
+// byte-identical (D6) - the example is self-contained (users copy it) and
+// the sync is enforced by this test, not by convention.
 func TestCaddyfileMatchesExampleByteIdentical(t *testing.T) {
 	if !caddyfileExists() {
-		t.Skip("Caddyfile no presente (gitignored): Caddyfile.example es el canónico (D6)")
+		t.Skip("Caddyfile not present (gitignored): Caddyfile.example is the canonical one (D6)")
 	}
 
 	caddyfile := readRepoFile(t, "Caddyfile")
@@ -86,15 +87,16 @@ func TestCaddyfileMatchesExampleByteIdentical(t *testing.T) {
 				break
 			}
 		}
-		t.Errorf("Caddyfile y Caddyfile.example no son byte-idénticos (D6)\n"+
-			"Caddyfile: %d bytes / %d líneas | example: %d bytes / %d líneas | primera diferencia línea %d",
+		t.Errorf("Caddyfile and Caddyfile.example are not byte-identical (D6)\n"+
+			"Caddyfile: %d bytes / %d lines | example: %d bytes / %d lines | first difference at line %d",
 			len(caddyfile), len(cl), len(example), len(el), diffLine)
 	}
 }
 
-// TestCaddyfileManagedBlocksImportPerSlug: los bloques gestionados por la UI
-// (api, app) importan los overlays per-slug en orden ip-rules → waf y NO usan
-// `import waf` - un segundo coraza_waf inline rompería el reload (R2, D2).
+// TestCaddyfileManagedBlocksImportPerSlug: the blocks managed by the UI
+// (api, app) import the per-slug overlays in ip-rules → waf order and do NOT
+// use `import waf` - a second inline coraza_waf would break the reload
+// (R2, D2).
 func TestCaddyfileManagedBlocksImportPerSlug(t *testing.T) {
 	content := string(readCaddyfile(t))
 
@@ -113,23 +115,23 @@ func TestCaddyfileManagedBlocksImportPerSlug(t *testing.T) {
 		wafImport := "import /etc/caddy/ui-managed/waf-" + m.slug + ".conf"
 
 		if !strings.Contains(block, ipImport) {
-			t.Errorf("%s: falta el import per-slug de ip-rules: %s\nbloque:\n%s", m.site, ipImport, block)
+			t.Errorf("%s: the per-slug ip-rules import is missing: %s\nblock:\n%s", m.site, ipImport, block)
 		}
 		if !strings.Contains(block, wafImport) {
-			t.Errorf("%s: falta el import per-slug de waf: %s\nbloque:\n%s", m.site, wafImport, block)
+			t.Errorf("%s: the per-slug waf import is missing: %s\nblock:\n%s", m.site, wafImport, block)
 		}
 		if strings.Index(block, ipImport) > strings.Index(block, wafImport) {
-			t.Errorf("%s: el import de ip-rules debe preceder al de waf (D2)", m.site)
+			t.Errorf("%s: the ip-rules import must precede the waf one (D2)", m.site)
 		}
 		if strings.Contains(block, "import waf") {
-			t.Errorf("%s: bloque gestionado no debe usar `import waf` (doble coraza_waf)", m.site)
+			t.Errorf("%s: a managed block must not use `import waf` (double coraza_waf)", m.site)
 		}
 	}
 }
 
-// TestCaddyfileUnmanagedBlocksKeepSnippetImport: los bloques NO gestionados
-// (example.com, assets, ws) conservan `import waf` y no referencian el
-// directorio ui-managed (D1, S5).
+// TestCaddyfileUnmanagedBlocksKeepSnippetImport: the NOT managed blocks
+// (example.com, assets, ws) keep `import waf` and do not reference the
+// ui-managed directory (D1, S5).
 func TestCaddyfileUnmanagedBlocksKeepSnippetImport(t *testing.T) {
 	content := string(readCaddyfile(t))
 
@@ -137,22 +139,22 @@ func TestCaddyfileUnmanagedBlocksKeepSnippetImport(t *testing.T) {
 		block := siteBlock(t, content, site)
 
 		if !strings.Contains(block, "import waf") {
-			t.Errorf("%s: bloque no gestionado debe usar `import waf` (D1)", site)
+			t.Errorf("%s: an unmanaged block must use `import waf` (D1)", site)
 		}
 		if strings.Contains(block, "ui-managed") {
-			t.Errorf("%s: bloque no gestionado no debe referenciar /etc/caddy/ui-managed", site)
+			t.Errorf("%s: an unmanaged block must not reference /etc/caddy/ui-managed", site)
 		}
 	}
 }
 
-// TestCaddyfileImportCountsMatchContract: conteos globales del contrato R2 -
-// exactamente 4 imports ui-managed (api+app × ip-rules+waf) y exactamente 3
-// usos de `import waf` (solo los bloques no gestionados).
+// TestCaddyfileImportCountsMatchContract: global counts of the R2 contract -
+// exactly 4 ui-managed imports (api+app × ip-rules+waf) and exactly 3 uses
+// of `import waf` (only the unmanaged blocks).
 func TestCaddyfileImportCountsMatchContract(t *testing.T) {
 	content := string(readCaddyfile(t))
 
-	// Conteo por línea (no substring): el texto de comentarios que mencione
-	// "import waf" o "ui-managed" no debe contaminar el conteo del contrato.
+	// Per-line count (not substring): comment text mentioning "import waf"
+	// or "ui-managed" must not pollute the contract count.
 	uiManaged := 0
 	snippetImports := 0
 	for _, l := range strings.Split(content, "\n") {
@@ -165,9 +167,9 @@ func TestCaddyfileImportCountsMatchContract(t *testing.T) {
 	}
 
 	if uiManaged != 4 {
-		t.Errorf("se esperaban 4 imports ui-managed (api+app × ip-rules+waf), hay %d", uiManaged)
+		t.Errorf("expected 4 ui-managed imports (api+app × ip-rules+waf), got %d", uiManaged)
 	}
 	if snippetImports != 3 {
-		t.Errorf("se esperaban 3 usos de `import waf` (example.com, assets, ws), hay %d", snippetImports)
+		t.Errorf("expected 3 uses of `import waf` (example.com, assets, ws), got %d", snippetImports)
 	}
 }

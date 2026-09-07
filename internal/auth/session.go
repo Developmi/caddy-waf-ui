@@ -13,30 +13,30 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/config"
 )
 
-// sessionCookieName es el nombre de la cookie de sesión (decisión D3):
-// la cookie ES el token de acceso, sin estado en servidor. El mismo secreto
-// protege páginas y API.
+// sessionCookieName is the name of the session cookie (decision D3):
+// the cookie IS the access token, with no server-side state. The same secret
+// protects pages and API.
 const sessionCookieName = "CADDY_UI_TOKEN"
 
-// csrfContext es la clave fija del HMAC que deriva el token CSRF a partir
-// del secreto: el secreto crudo nunca viaja en el DOM (decisión D1).
+// csrfContext is the fixed HMAC context used to derive the CSRF token from
+// the secret: the raw secret never travels in the DOM (decision D1).
 const csrfContext = "csrf"
 
-// sessionMaxAgeSeconds es la vida útil de la cookie de sesión: 12h (SC-1).
-// Con la rotación diaria del token, una cookie capturada conserva validez
-// hasta esa ventana posterior a la rotación — tradeoff aceptado del diseño
-// stateless (sin expiración server-side).
+// sessionMaxAgeSeconds is the session cookie lifetime: 12h (SC-1).
+// With daily token rotation, a captured cookie stays valid until that
+// post-rotation window — an accepted tradeoff of the stateless design
+// (no server-side expiration).
 const sessionMaxAgeSeconds = 43200
 
-// tokenFromEnv devuelve el token configurado (vacío si no está definido).
-// Centralizado en config (hallazgo J5-3).
+// tokenFromEnv returns the configured token (empty if unset).
+// Centralized in config (finding J5-3).
 func tokenFromEnv() string {
 	return config.Token()
 }
 
-// tokenMatches compara en tiempo constante el token provisto contra el
-// configurado (mismo patrón anti-timing que bearer.go). Un token no
-// configurado nunca valida.
+// tokenMatches compares the provided token against the configured one in
+// constant time (same anti-timing pattern as bearer.go). An unconfigured
+// token never validates.
 func tokenMatches(provided string) bool {
 	expected := tokenFromEnv()
 	if expected == "" || provided == "" {
@@ -45,7 +45,7 @@ func tokenMatches(provided string) bool {
 	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
 }
 
-// bearerToken extrae el token de un header Authorization Bearer, o "".
+// bearerToken extracts the token from an Authorization Bearer header, or "".
 func bearerToken(r *http.Request) string {
 	parts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
@@ -54,8 +54,9 @@ func bearerToken(r *http.Request) string {
 	return parts[1]
 }
 
-// HasValidSession indica si el request trae una sesión válida: cookie
-// CADDY_UI_TOKEN o Bearer válido (spec web-ui: "cookie or valid Bearer").
+// HasValidSession reports whether the request carries a valid session:
+// a CADDY_UI_TOKEN cookie or a valid Bearer (spec web-ui: "cookie or valid
+// Bearer").
 func HasValidSession(r *http.Request) bool {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil && tokenMatches(cookie.Value) {
 		return true
@@ -63,9 +64,9 @@ func HasValidSession(r *http.Request) bool {
 	return tokenMatches(bearerToken(r))
 }
 
-// SetSessionCookie fija la cookie de sesión con HttpOnly; Secure;
-// SameSite=Strict; Path=/ y Max-Age 12h (decisión D3: loopback es un
-// contexto seguro, por eso Secure funciona sobre HTTP plano; SC-1).
+// SetSessionCookie sets the session cookie with HttpOnly; Secure;
+// SameSite=Strict; Path=/ and Max-Age 12h (decision D3: loopback is a
+// secure context, which is why Secure works over plain HTTP; SC-1).
 func SetSessionCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
@@ -78,9 +79,8 @@ func SetSessionCookie(w http.ResponseWriter, token string) {
 	})
 }
 
-// Login valida la credencial (comparación en tiempo constante) y, si es
-// válida, fija la cookie de sesión. Devuelve true solo si la sesión quedó
-// establecida.
+// Login validates the credential (constant-time comparison) and, if valid,
+// sets the session cookie. Returns true only if the session was established.
 func Login(w http.ResponseWriter, provided string) bool {
 	if !tokenMatches(provided) {
 		return false
@@ -89,7 +89,7 @@ func Login(w http.ResponseWriter, provided string) bool {
 	return true
 }
 
-// Logout invalida la cookie de sesión del cliente (expiración inmediata).
+// Logout invalidates the client's session cookie (immediate expiration).
 func Logout(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
@@ -99,13 +99,13 @@ func Logout(w http.ResponseWriter) {
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
-		Expires:  time.Unix(1, 0), // ya vencida
+		Expires:  time.Unix(1, 0), // already expired
 	})
 }
 
-// Session protege las páginas SSR: acepta cookie de sesión o Bearer válido;
-// sin sesión redirige a /login (302, spec web-ui) en lugar de responder 401,
-// porque el cliente esperado es un navegador.
+// Session protects the SSR pages: it accepts a valid session cookie or
+// Bearer; without a session it redirects to /login (302, spec web-ui)
+// instead of responding 401, because the expected client is a browser.
 func Session(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !HasValidSession(r) {
@@ -116,24 +116,23 @@ func Session(next http.Handler) http.Handler {
 	})
 }
 
-// CSRFValue deriva el token de doble envío: HMAC-SHA256(secreto, "csrf") en
-// hex (decisión D1). El secreto crudo nunca aparece en el DOM, así un XSS no
-// puede exfiltrarlo para su uso contra /api.
+// CSRFValue derives the double-submit token: HMAC-SHA256(secret, "csrf") in
+// hex (decision D1). The raw secret never appears in the DOM, so an XSS
+// cannot exfiltrate it for use against /api.
 func CSRFValue() (string, error) {
 	secret := tokenFromEnv()
 	if secret == "" {
-		return "", errors.New("CADDY_UI_TOKEN no configurado: no se puede derivar token CSRF")
+		return "", errors.New("CADDY_UI_TOKEN not configured: cannot derive CSRF token")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(csrfContext))
 	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
-// CSRF valida el campo oculto "csrf" (double-submit) en los requests de
-// mutación, con comparación en tiempo constante (crypto/subtle). Los
-// requests autenticados por Bearer quedan exentos: un navegador no puede
-// adjuntar Authorization cross-site (decisión D1). Los métodos seguros
-// (GET/HEAD/OPTIONS) pasan sin token.
+// CSRF validates the hidden "csrf" field (double-submit) on mutation
+// requests with constant-time comparison (crypto/subtle). Bearer-authenticated
+// requests are exempt: a browser cannot attach Authorization cross-site
+// (decision D1). Safe methods (GET/HEAD/OPTIONS) pass without a token.
 func CSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
