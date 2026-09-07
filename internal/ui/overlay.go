@@ -10,15 +10,15 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/waf"
 )
 
-// Los parsers de overlay leen EXCLUSIVAMENTE el formato que genera este
-// proyecto (waf/exclusions.go e iprules/rules.go), garantizando un
-// round-trip exacto. Su propósito es doble:
-//  1. Renderizar las listas activas de exclusiones/reglas IP en las vistas
-//     SSR (task 2.5) sin inventar lectores de terceros.
-//  2. Permitir que los formularios "add" (task 2.6) fusionen la regla nueva
-//     con el estado actual ANTES de llamar a la cadena compartida (que
-//     reemplaza la lista completa): sin esto, agregar una regla borraría
-//     silenciosamente las existentes.
+// The overlay parsers read EXCLUSIVELY the format that this project
+// generates (waf/exclusions.go and iprules/rules.go), guaranteeing an exact
+// round-trip. Their purpose is twofold:
+//  1. Render the active exclusions/IP rules lists in the SSR views (task 2.5)
+//     without inventing third-party readers.
+//  2. Allow the "add" forms (task 2.6) to merge the new rule with the current
+//     state BEFORE calling the shared chain (which replaces the complete
+//     list): without this, adding a rule would silently delete the existing
+//     ones.
 var (
 	exclusionURLLine   = regexp.MustCompile(`^SecRuleRemoveById\s+(\d+)$`)
 	exclusionTagLine   = regexp.MustCompile(`^SecRuleRemoveByTag\s+"([A-Za-z0-9_-]+)"$`)
@@ -28,9 +28,9 @@ var (
 	ipRulesAllowLine   = regexp.MustCompile(`^\s*not remote_ip\s+(.+)$`)
 )
 
-// parseExclusionsOverlay extrae las exclusiones del overlay generado.
-// Las líneas desconocidas (comentarios, cabeceras) se ignoran: el parser
-// solo reconoce directivas que el propio generador escribe.
+// parseExclusionsOverlay extracts the exclusions of the generated overlay.
+// Unknown lines (comments, headers) are ignored: the parser only recognizes
+// directives that the generator itself writes.
 func parseExclusionsOverlay(content []byte) ([]waf.Exclusion, error) {
 	var exclusions []waf.Exclusion
 	for _, line := range strings.Split(string(content), "\n") {
@@ -53,9 +53,10 @@ func parseExclusionsOverlay(content []byte) ([]waf.Exclusion, error) {
 	return exclusions, nil
 }
 
-// parseIPRulesOverlay extrae las listas allow/deny del overlay generado.
-// "not remote_ip ..." (allowlist) no colisiona con "remote_ip ..."
-// (denylist) porque el prefijo "not " impide el match del primer patrón.
+// parseIPRulesOverlay extracts the allow/deny lists of the generated
+// overlay. "not remote_ip ..." (allowlist) does not collide with "remote_ip
+// ..." (denylist) because the "not " prefix prevents the match of the first
+// pattern.
 func parseIPRulesOverlay(content []byte) (iprules.IPRules, error) {
 	var rules iprules.IPRules
 	for _, line := range strings.Split(string(content), "\n") {
@@ -69,13 +70,13 @@ func parseIPRulesOverlay(content []byte) (iprules.IPRules, error) {
 	return rules, nil
 }
 
-// readExclusions devuelve las exclusiones activas del dominio, o nil si el
-// overlay aún no existe (primera configuración).
+// readExclusions returns the active exclusions of the domain, or nil if the
+// overlay does not exist yet (first configuration).
 func readExclusions(domainName string) ([]waf.Exclusion, error) {
 	return readExclusionsFile(files.ExclusionsConfigPath(managedDir(), domainName))
 }
 
-// readExclusionsFile lee y parsea un overlay de exclusiones por ruta.
+// readExclusionsFile reads and parses an exclusions overlay by path.
 func readExclusionsFile(path string) ([]waf.Exclusion, error) {
 	content, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -87,13 +88,13 @@ func readExclusionsFile(path string) ([]waf.Exclusion, error) {
 	return parseExclusionsOverlay(content)
 }
 
-// readIPRules devuelve las reglas IP activas del dominio, o listas vacías si
-// el overlay aún no existe.
+// readIPRules returns the active IP rules of the domain, or empty lists if
+// the overlay does not exist yet.
 func readIPRules(domainName string) (iprules.IPRules, error) {
 	return readIPRulesFile(files.IPRulesConfigPath(managedDir(), domainName))
 }
 
-// readIPRulesFile lee y parsea un overlay de reglas IP por ruta.
+// readIPRulesFile reads and parses an IP rules overlay by path.
 func readIPRulesFile(path string) (iprules.IPRules, error) {
 	content, err := os.ReadFile(path)
 	if os.IsNotExist(err) {

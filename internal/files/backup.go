@@ -14,22 +14,22 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/domain"
 )
 
-// ErrInvalidBackup señala un nombre de snapshot inválido o inexistente. Los
-// handlers REST lo traducen a 400 Bad Request (mismo patrón que ErrInvalidMode).
-var ErrInvalidBackup = errors.New("snapshot de configuración inválido")
+// ErrInvalidBackup signals an invalid or nonexistent snapshot name. REST
+// handlers translate it to 400 Bad Request (same pattern as ErrInvalidMode).
+var ErrInvalidBackup = errors.New("invalid configuration snapshot")
 
-// backupNamePattern valida el nombre canónico de un snapshot:
-// {ISO8601 UTC con :→-}.{tipo}.conf - ej: 2026-08-07T15-52-13Z.waf.conf.
-// El patrón estricto (timestamp de 20 caracteres + tipo conocido) impide
-// path traversal y cualquier nombre fuera de la convención de backup.
-// El conjunto de tipos se construye desde las constantes FileType* (J5-7)
-// para que regex y switches nunca divergan.
+// backupNamePattern validates the canonical name of a snapshot:
+// {ISO8601 UTC with :→-}.{type}.conf - e.g.: 2026-08-07T15-52-13Z.waf.conf.
+// The strict pattern (20-character timestamp + known type) prevents path
+// traversal and any name outside the backup convention.
+// The type set is built from the FileType* constants (J5-7) so regexes and
+// switches never diverge.
 var backupNamePattern = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)\.(` +
 	FileTypeWAF + `|` + FileTypeExclusions + `|` + FileTypeIPRules + `)\.conf$`)
 
-// BackupType valida el nombre de un snapshot y devuelve el tipo de overlay al
-// que pertenece ("waf" | "exclusions" | "ip-rules"). Rechaza nombres con
-// separadores de ruta o fuera del formato canónico (anti path traversal).
+// BackupType validates a snapshot name and returns the overlay type it
+// belongs to ("waf" | "exclusions" | "ip-rules"). It rejects names with
+// path separators or outside the canonical format (anti path traversal).
 func BackupType(snapshotID string) (string, error) {
 	m := backupNamePattern.FindStringSubmatch(snapshotID)
 	if m == nil {
@@ -38,10 +38,10 @@ func BackupType(snapshotID string) (string, error) {
 	return m[2], nil
 }
 
-// ListBackups devuelve los snapshots de configuración de un dominio ordenados
-// del más reciente al más antiguo. Los archivos que no siguen la convención de
-// nombres se ignoran; sin directorio de backups devuelve lista vacía (estado
-// vacío honesto, nunca un error).
+// ListBackups returns the configuration snapshots of a domain ordered from
+// newest to oldest. Files that do not follow the naming convention are
+// ignored; without a backups directory it returns an empty list (honest
+// empty state, never an error).
 func ListBackups(domainName string) ([]BackupInfo, error) {
 	entries, err := os.ReadDir(BackupDirPath(backupDirPath(), domainName))
 	if os.IsNotExist(err) {
@@ -67,8 +67,8 @@ func ListBackups(domainName string) ([]BackupInfo, error) {
 		backups = append(backups, BackupInfo{Timestamp: m[1], FileType: m[2], Size: info.Size()})
 	}
 
-	// El ISO8601 con guiones ordena lexicográficamente = cronológicamente:
-	// descendente deja el snapshot más reciente primero.
+	// The hyphenated ISO8601 sorts lexicographically = chronologically:
+	// descending leaves the newest snapshot first.
 	sort.Slice(backups, func(i, j int) bool {
 		keyI := backups[i].Timestamp + backups[i].FileType
 		keyJ := backups[j].Timestamp + backups[j].FileType
@@ -78,9 +78,10 @@ func ListBackups(domainName string) ([]BackupInfo, error) {
 	return backups, nil
 }
 
-// RestoreBackup restaura los bytes del snapshot indicado (nombre completo
-// {ISO8601}.{tipo}.conf) sobre el overlay de su tipo con escritura atómica
-// (bytes → conf path). Falla si el nombre es inválido o el snapshot no existe.
+// RestoreBackup restores the bytes of the given snapshot (full name
+// {ISO8601}.{type}.conf) over the overlay of its type with atomic writes
+// (bytes → conf path). It fails if the name is invalid or the snapshot does
+// not exist.
 func RestoreBackup(domainName, snapshotID string) error {
 	fileType, err := BackupType(snapshotID)
 	if err != nil {
@@ -89,7 +90,7 @@ func RestoreBackup(domainName, snapshotID string) error {
 
 	content, err := os.ReadFile(filepath.Join(BackupDirPath(backupDirPath(), domainName), snapshotID))
 	if os.IsNotExist(err) {
-		return fmt.Errorf("%w: el snapshot %q no existe", ErrInvalidBackup, snapshotID)
+		return fmt.Errorf("%w: snapshot %q does not exist", ErrInvalidBackup, snapshotID)
 	}
 	if err != nil {
 		return err
@@ -102,74 +103,75 @@ func RestoreBackup(domainName, snapshotID string) error {
 	return AtomicWrite(confPath, content)
 }
 
-// BackupInfo describe un snapshot de configuración disponible para rollback.
-// La Fase 4 completa la lectura (ListBackups/RestoreBackup); la UI ya consume
-// el shape para renderizar el historial (rollback.html).
+// BackupInfo describes a configuration snapshot available for rollback.
+// Phase 4 completes the read path (ListBackups/RestoreBackup); the UI already
+// consumes the shape to render the history (rollback.html).
 type BackupInfo struct {
 	Timestamp string
 	FileType  string
 	Size      int64
 }
 
-// managedDirPath devuelve el directorio de overlays gestionados. Centralizado
-// en config (hallazgo J5-3): antes vivía triplicado en chain.go, backup.go y
-// pages.go con la misma lectura de entorno.
+// managedDirPath returns the managed overlays directory. Centralized in
+// config (finding J5-3): it used to live triplicated in chain.go, backup.go
+// and pages.go with the same environment read.
 func managedDirPath() string {
 	return config.ManagedDir()
 }
 
-// backupDirPath devuelve el directorio raíz de snapshots.
+// backupDirPath returns the root snapshots directory.
 func backupDirPath() string {
 	return config.BackupDir()
 }
 
-// Backup toma el estado actual de un archivo de configuración de un dominio y crea un snapshot.
-// Respeta el límite de retención definido en las variables de entorno[cite: 4].
+// Backup takes the current state of a domain's configuration file and
+// creates a snapshot. It respects the retention limit defined by the
+// environment variables[cite: 4].
 func Backup(domainName string, fileType string) error {
-	// 1. Definir rutas basadas en las variables de entorno
+	// 1. Define paths based on the environment variables
 	managedDir := managedDirPath()
 	backupDir := backupDirPath()
 
 	keepLimit := config.BackupKeep()
 
-	// Archivo origen en /ui-managed/
-	// Ej: waf-api_example_com.conf
-	// El slug se usa tanto para el origen como para el directorio de backups (bug #265):
-	// el dominio crudo con comodín ("*") no puede formar parte de una ruta.
+	// Source file in /ui-managed/
+	// E.g.: waf-api_example_com.conf
+	// The slug is used both for the source and the backups directory (bug
+	// #265): the raw wildcard domain ("*") cannot be part of a path.
 	sourceFileName := fmt.Sprintf("%s-%s.conf", fileType, domain.DomainSlug(domainName))
 	sourcePath := filepath.Join(managedDir, sourceFileName)
 
-	// Si el archivo origen no existe, no hay nada que respaldar (ej: primera
-	// vez que se configura). Cualquier otro error de stat (p.ej. EACCES) es un
-	// fallo real y debe propagarse, no tratarse como "sin backup previo".
+	// If the source file does not exist, there is nothing to back up (e.g.:
+	// first time it is configured). Any other stat error (e.g. EACCES) is a
+	// real failure and must be propagated, not treated as "no previous backup".
 	if _, err := os.Stat(sourcePath); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("error comprobando el archivo origen %q: %w", sourcePath, err)
+		return fmt.Errorf("error checking source file %q: %w", sourcePath, err)
 	}
 
-	// 2. Crear el directorio de backup para este dominio
+	// 2. Create the backup directory for this domain
 	domainBackupDir := BackupDirPath(backupDir, domainName)
 	if err := os.MkdirAll(domainBackupDir, 0750); err != nil {
-		return fmt.Errorf("error creando directorio de backup: %w", err)
+		return fmt.Errorf("error creating backup directory: %w", err)
 	}
 
-	// 3. Generar el snapshot con formato {ISO8601}.{fileType}.conf[cite: 1]
-	// Usamos formato seguro para nombres de archivo (reemplazando : por -)
+	// 3. Generate the snapshot with format {ISO8601}.{fileType}.conf[cite: 1]
+	// We use a filename-safe format (replacing : with -)
 	timestamp := time.Now().UTC().Format("2006-01-02T15-04-05Z")
 	backupFileName := fmt.Sprintf("%s.%s.conf", timestamp, fileType)
 	backupPath := filepath.Join(domainBackupDir, backupFileName)
 
 	if err := copyFile(sourcePath, backupPath); err != nil {
-		return fmt.Errorf("error copiando backup: %w", err)
+		return fmt.Errorf("error copying backup: %w", err)
 	}
 
-	// 4. Aplicar política de retención (Limpiar backups antiguos)
+	// 4. Apply the retention policy (remove old backups)
 	return enforceRetention(domainBackupDir, fileType, keepLimit)
 }
 
-// copyFile es una función auxiliar para copiar los bytes de un archivo a otro
+// copyFile is a helper that copies the bytes of one file to another
 func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {
@@ -187,16 +189,16 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// enforceRetention elimina los snapshots más antiguos si se supera el límite
+// enforceRetention removes the oldest snapshots when the limit is exceeded
 func enforceRetention(dir, fileType string, limit int) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 
-	// Filtrar solo los snapshots canónicos de este tipo específico (waf,
-	// exclusions, ip-rules): misma regex estricta que ListBackups, para que
-	// la retención y el listado coincidan en qué cuenta como backup.
+	// Filter only the canonical snapshots of this specific type (waf,
+	// exclusions, ip-rules): the same strict regex as ListBackups, so
+	// retention and listing agree on what counts as a backup.
 	var backups []os.DirEntry
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -209,22 +211,23 @@ func enforceRetention(dir, fileType string, limit int) error {
 		backups = append(backups, entry)
 	}
 
-	// Si estamos dentro del límite, no hacemos nada
+	// If we are within the limit, do nothing
 	if len(backups) <= limit {
 		return nil
 	}
 
-	// Ordenar alfabéticamente (por cómo construimos el ISO8601, el orden alfabético es cronológico)
+	// Sort alphabetically (with the ISO8601 as built, alphabetical order is
+	// chronological)
 	sort.Slice(backups, func(i, j int) bool {
 		return backups[i].Name() < backups[j].Name()
 	})
 
-	// Eliminar los más antiguos
+	// Remove the oldest
 	toDelete := len(backups) - limit
 	for i := 0; i < toDelete; i++ {
 		oldPath := filepath.Join(dir, backups[i].Name())
 		if err := os.Remove(oldPath); err != nil {
-			return fmt.Errorf("error eliminando backup antiguo %s: %w", oldPath, err)
+			return fmt.Errorf("error removing old backup %s: %w", oldPath, err)
 		}
 	}
 

@@ -1,20 +1,20 @@
 package integration_test
 
-// Tests de integración del rate limiting (S4, RL-1/RL-2/RL-3/D4).
+// Integration tests of the rate limiting (S4, RL-1/RL-2/RL-3/D4).
 //
-// El mux se ensambla aquí como espejo EXACTO del ensamblado de
-// cmd/server/main.go tras el wiring de S4.4 (limiter FUERA de auth, D4):
-// package main no es importable desde tests de integración, así que este
-// helper replica el orden de montaje para que las exclusiones de RL-3 (que
-// caen del montaje: /health, /static/, SSR GET y GET /login nunca se envuelven)
-// queden verificadas contra la misma estructura que corre en producción.
-// Mantener en sync con cmd/server/main.go.
+// The mux is assembled here as an EXACT mirror of the assembly of
+// cmd/server/main.go after the S4.4 wiring (limiter OUTSIDE auth, D4):
+// package main is not importable from integration tests, so this helper
+// replicates the mounting order so the RL-3 exclusions (which fall from the
+// mounting: /health, /static/, SSR GET and GET /login are never wrapped) are
+// verified against the same structure that runs in production. Keep in sync
+// with cmd/server/main.go.
 //
-// Los limitadores de Login/API son globales de proceso (D3: single-process,
-// sin lifecycle) y se sharen entre los tests del paquete. Por eso el orden
-// de declaración importa: los tests que consumen presupuesto de login POST
-// (under-limit y el subtest login-get de exempt) se declaran ANTES del test
-// del techo global, que drena el bucket compartido y corre al final.
+// The Login/API limiters are process globals (D3: single-process, without
+// lifecycle) and are shared between the tests of the package. That is why
+// the declaration order matters: the tests that consume login POST budget
+// (under-limit and the login-get subtest of exempt) are declared BEFORE the
+// global-ceiling test, which drains the shared bucket and runs at the end.
 
 import (
 	"fmt"
@@ -31,10 +31,10 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/ui"
 )
 
-// setupRateLimited ensambla el mux de producción con el rate limiting
-// aplicado: /login envuelto por ratelimit.Login (solo POST), /api/* por
-// ratelimit.API FUERA de auth.Middleware/logs.RequestLogger, y /health,
-// /static/ y las páginas SSR sin ningún limiter (RL-3 por montaje).
+// setupRateLimited assembles the production mux with the rate limiting
+// applied: /login wrapped by ratelimit.Login (only POST), /api/* by
+// ratelimit.API OUTSIDE auth.Middleware/logs.RequestLogger, and /health,
+// /static/ and the SSR pages without any limiter (RL-3 by mounting).
 func setupRateLimited(t *testing.T) http.Handler {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -51,8 +51,8 @@ func setupRateLimited(t *testing.T) http.Handler {
 	return mux
 }
 
-// rlRequest dispara un request contra el mux con RemoteAddr explícito (la
-// clave del limiter) y devuelve el recorder.
+// rlRequest fires a request against the mux with an explicit RemoteAddr (the
+// limiter key) and returns the recorder.
 func rlRequest(t *testing.T, handler http.Handler, method, path, remoteAddr, token string) *httptest.ResponseRecorder {
 	t.Helper()
 	var body *strings.Reader
@@ -75,27 +75,28 @@ func rlRequest(t *testing.T, handler http.Handler, method, path, remoteAddr, tok
 	return rec
 }
 
-// assertRetryAfter valida que una respuesta 429 lleve Retry-After entero ≥ 1
-// y que NO fije Set-Cookie (el 429 corta antes de auth/CSRF, D4).
+// assertRetryAfter validates that a 429 response carries an integer
+// Retry-After ≥ 1 and that it does NOT set Set-Cookie (the 429 cuts before
+// auth/CSRF, D4).
 func assertRetryAfter(t *testing.T, rec *httptest.ResponseRecorder) int {
 	t.Helper()
 	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("se esperaba 429, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 429, got %d", rec.Code)
 	}
 	raw := rec.Header().Get("Retry-After")
 	retry, err := strconv.Atoi(raw)
 	if err != nil || retry < 1 {
-		t.Fatalf("Retry-After debe ser un entero ≥ 1, se obtuvo %q", raw)
+		t.Fatalf("Retry-After must be an integer ≥ 1, got %q", raw)
 	}
 	if rec.Header().Get("Set-Cookie") != "" {
-		t.Errorf("un 429 del limiter no debe fijar Set-Cookie: %q", rec.Header().Get("Set-Cookie"))
+		t.Errorf("a limiter 429 must not set Set-Cookie: %q", rec.Header().Get("Set-Cookie"))
 	}
 	return retry
 }
 
-// TestRLLoginUnderLimitThenPerClientBreach (RL-1): con ≤5 POST /login por
-// minuto el flujo PRG normal ocurre (303 → /, sin 429); el sexto POST del
-// mismo cliente recibe 429 + Retry-After y sin Set-Cookie.
+// TestRLLoginUnderLimitThenPerClientBreach (RL-1): with ≤5 POST /login per
+// minute the normal PRG flow happens (303 → /, without 429); the sixth POST
+// of the same client receives 429 + Retry-After and without Set-Cookie.
 func TestRLLoginUnderLimitThenPerClientBreach(t *testing.T) {
 	handler := setupRateLimited(t)
 
@@ -103,13 +104,13 @@ func TestRLLoginUnderLimitThenPerClientBreach(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		rec := rlRequest(t, handler, http.MethodPost, "/login", client, "super-secret-token")
 		if rec.Code != http.StatusSeeOther {
-			t.Fatalf("POST /login %d/5 bajo el límite: se esperaba 303, se obtuvo %d", i, rec.Code)
+			t.Fatalf("POST /login %d/5 under the limit: expected 303, got %d", i, rec.Code)
 		}
 		if loc := rec.Header().Get("Location"); loc != "/" {
-			t.Errorf("POST /login %d/5: se esperaba redirección a /, se obtuvo %q", i, loc)
+			t.Errorf("POST /login %d/5: expected a redirect to /, got %q", i, loc)
 		}
 		if rec.Header().Get("Retry-After") != "" {
-			t.Errorf("POST /login %d/5 bajo el límite no debe llevar Retry-After", i)
+			t.Errorf("POST /login %d/5 under the limit must not carry Retry-After", i)
 		}
 	}
 
@@ -117,10 +118,10 @@ func TestRLLoginUnderLimitThenPerClientBreach(t *testing.T) {
 	assertRetryAfter(t, rec)
 }
 
-// TestRLAPIBurstToleratedOutsideAuth (RL-2/D4): /api/* admite una ráfaga de
-// 30 requests por cliente SIN token (el limiter corre FUERA de auth: las
-// probes anónimas queman presupuesto y responden 401, nunca 429 dentro del
-// burst); superado el burst, llega 429 + Retry-After.
+// TestRLAPIBurstToleratedOutsideAuth (RL-2/D4): /api/* allows a burst of 30
+// requests per client WITHOUT a token (the limiter runs OUTSIDE auth: the
+// anonymous probes burn budget and respond 401, never 429 inside the burst);
+// once the burst is exceeded, 429 + Retry-After arrives.
 func TestRLAPIBurstToleratedOutsideAuth(t *testing.T) {
 	handler := setupRateLimited(t)
 
@@ -128,10 +129,10 @@ func TestRLAPIBurstToleratedOutsideAuth(t *testing.T) {
 	for i := 1; i <= 30; i++ {
 		rec := rlRequest(t, handler, http.MethodGet, "/api/sites/example.com/backups", client, "")
 		if rec.Code == http.StatusTooManyRequests {
-			t.Fatalf("GET /api %d/30 dentro del burst (30): no debe haber 429, se obtuvo 429", i)
+			t.Fatalf("GET /api %d/30 inside the burst (30): there must be no 429, got 429", i)
 		}
 		if rec.Code != http.StatusUnauthorized {
-			t.Fatalf("GET /api %d/30 sin token: se esperaba 401 (auth por fuera del limiter), se obtuvo %d", i, rec.Code)
+			t.Fatalf("GET /api %d/30 without a token: expected 401 (auth outside the limiter), got %d", i, rec.Code)
 		}
 	}
 
@@ -145,25 +146,25 @@ func TestRLAPIBurstToleratedOutsideAuth(t *testing.T) {
 		}
 	}
 	if blocked == 0 {
-		t.Error("superado el burst de 30, /api debe devolver 429 al menos una vez")
+		t.Error("after exceeding the burst of 30, /api must return 429 at least once")
 	}
 }
 
-// TestRLExemptRoutesNeverLimited (RL-3): /health, /static/, las páginas SSR
-// (GET /) y la página GET /login NO están envueltas por ningún limiter: un
-// martilleo muy por encima de cualquier umbral jamás recibe 429.
+// TestRLExemptRoutesNeverLimited (RL-3): /health, /static/, the SSR pages
+// (GET /) and the GET /login page are NOT wrapped by any limiter: a hammer
+// far above any threshold never receives 429.
 func TestRLExemptRoutesNeverLimited(t *testing.T) {
 	handler := setupRateLimited(t)
-	const hammer = 65 // muy por encima del techo global de login (60)
+	const hammer = 65 // far above the global login ceiling (60)
 
 	t.Run("health", func(t *testing.T) {
 		for i := 0; i < hammer; i++ {
 			rec := rlRequest(t, handler, http.MethodGet, "/health", fmt.Sprintf("10.9.0.%d:1", i), "")
 			if rec.Code != http.StatusOK {
-				t.Fatalf("GET /health %d: se esperaba 200, se obtuvo %d", i+1, rec.Code)
+				t.Fatalf("GET /health %d: expected 200, got %d", i+1, rec.Code)
 			}
 			if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
-				t.Errorf("GET /health %d: cuerpo inesperado %q", i+1, rec.Body.String())
+				t.Errorf("GET /health %d: unexpected body %q", i+1, rec.Body.String())
 			}
 		}
 	})
@@ -172,7 +173,7 @@ func TestRLExemptRoutesNeverLimited(t *testing.T) {
 		for i := 0; i < hammer; i++ {
 			rec := rlRequest(t, handler, http.MethodGet, "/static/app.css", fmt.Sprintf("10.9.1.%d:1", i), "")
 			if rec.Code != http.StatusOK {
-				t.Fatalf("GET /static/app.css %d: se esperaba 200, se obtuvo %d", i+1, rec.Code)
+				t.Fatalf("GET /static/app.css %d: expected 200, got %d", i+1, rec.Code)
 			}
 		}
 	})
@@ -181,47 +182,47 @@ func TestRLExemptRoutesNeverLimited(t *testing.T) {
 		for i := 0; i < hammer; i++ {
 			rec := rlRequest(t, handler, http.MethodGet, "/", fmt.Sprintf("10.9.2.%d:1", i), "")
 			if rec.Code == http.StatusTooManyRequests {
-				t.Fatalf("GET / (SSR) %d: las páginas SSR no se limitan, se obtuvo 429", i+1)
+				t.Fatalf("GET / (SSR) %d: the SSR pages are not limited, got 429", i+1)
 			}
 			if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/login" {
-				t.Fatalf("GET / (SSR) %d sin sesión: se esperaba 302 → /login, se obtuvo %d %q", i+1, rec.Code, rec.Header().Get("Location"))
+				t.Fatalf("GET / (SSR) %d without a session: expected 302 → /login, got %d %q", i+1, rec.Code, rec.Header().Get("Location"))
 			}
 		}
 	})
 
 	t.Run("login-get-after-post-exhausted", func(t *testing.T) {
-		// Mismo cliente que ya agotó su presupuesto de POST: la página GET
-		// /login sigue servida (el limiter de login solo aplica a POST, D4).
+		// Same client that already exhausted its POST budget: the GET /login
+		// page stays served (the login limiter only applies to POST, D4).
 		const client = "203.0.113.99:4567"
 		for i := 0; i < 5; i++ {
 			rlRequest(t, handler, http.MethodPost, "/login", client, "super-secret-token")
 		}
 		if rec := rlRequest(t, handler, http.MethodPost, "/login", client, "super-secret-token"); rec.Code != http.StatusTooManyRequests {
-			t.Fatalf("setup: el sexto POST debe estar limitado, se obtuvo %d", rec.Code)
+			t.Fatalf("setup: the sixth POST must be limited, got %d", rec.Code)
 		}
 		for i := 0; i < 20; i++ {
 			rec := rlRequest(t, handler, http.MethodGet, "/login", client, "")
 			if rec.Code != http.StatusOK {
-				t.Fatalf("GET /login %d con POST agotado: se esperaba 200, se obtuvo %d", i+1, rec.Code)
+				t.Fatalf("GET /login %d with exhausted POST: expected 200, got %d", i+1, rec.Code)
 			}
 		}
 	})
 }
 
-// TestRLLoginGlobalCeilingAcrossClients (RL-1): el techo global (60/min) es
-// un bucket COMPARTIDO por todos los clients. Corre al final del archivo
-// porque drena el bucket global del proceso: primero observa el 429 (el
-// bucket puede venir parcialmente consumido por los tests previos, así que no
-// se assume un techo limpio) y luego prueba la propiedad central: clients
-// NUEVOS, con sus buckets por-cliente llenos, siguen bloqueados por el bucket
-// global agotado.
+// TestRLLoginGlobalCeilingAcrossClients (RL-1): the global ceiling (60/min)
+// is a bucket SHARED by all the clients. It runs at the end of the file
+// because it drains the process global bucket: first it observes the 429
+// (the bucket may come partially consumed by the previous tests, so a clean
+// ceiling is not assumed) and then it tests the central property: NEW
+// clients, with their full per-client buckets, remain blocked by the
+// exhausted global bucket.
 func TestRLLoginGlobalCeilingAcrossClients(t *testing.T) {
 	handler := setupRateLimited(t)
 
-	// Consumir con clients frescos hasta observar el primer 429. El refill
-	// es 1 token/s: estos intentos corren en milisegundos, así que el bucket
-	// no recupera ≥1 token durante el loop (acotado a 70 intentos ≤ 61
-	// necesarios + margen).
+	// Consume with fresh clients until observing the first 429. The refill
+	// is 1 token/s: these attempts run in milliseconds, so the bucket does
+	// not recover ≥1 token during the loop (bounded to 70 attempts ≤ 61
+	// needed + margin).
 	exhausted := false
 	for i := 0; i < 70; i++ {
 		rec := rlRequest(t, handler, http.MethodPost, "/login", fmt.Sprintf("10.1.0.%d:1234", i), "super-secret-token")
@@ -231,16 +232,16 @@ func TestRLLoginGlobalCeilingAcrossClients(t *testing.T) {
 			break
 		}
 		if rec.Code != http.StatusSeeOther {
-			t.Fatalf("POST %d de clients frescos bajo el techo: se esperaba 303, se obtuvo %d", i+1, rec.Code)
+			t.Fatalf("POST %d of fresh clients under the ceiling: expected 303, got %d", i+1, rec.Code)
 		}
 	}
 	if !exhausted {
-		t.Fatal("el techo global debe agotarse en ≤70 intentos de clients frescos")
+		t.Fatal("the global ceiling must be exhausted in ≤70 attempts of fresh clients")
 	}
 
-	// Prueba del techo COMPARTIDO: cada cliente nuevo tiene su bucket
-	// por-cliente lleno (5/5); si recibe 429 es porque el bucket GLOBAL
-	// agotado lo bloquea (refill despreciable entre requests consecutivos).
+	// Test of the SHARED ceiling: each new client has its full per-client
+	// bucket (5/5); if it receives 429 it is because the exhausted GLOBAL
+	// bucket blocks it (negligible refill between consecutive requests).
 	for i := 0; i < 5; i++ {
 		rec := rlRequest(t, handler, http.MethodPost, "/login", fmt.Sprintf("10.2.0.%d:1234", i), "super-secret-token")
 		assertRetryAfter(t, rec)

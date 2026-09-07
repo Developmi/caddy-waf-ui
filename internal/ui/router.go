@@ -4,29 +4,29 @@ import (
 	"net/http"
 )
 
-// NewRouter ensambla las rutas RESTful de la API de gestión.
-// Los path params (Go 1.22+ ServeMux) reemplazan a los endpoints planos:
-// el contrato viejo (/api/mode, /api/exclusions, /api/iprules) ya no existe
-// y devuelve 404 naturalmente. /health NO vive aquí: main.go lo monta aparte
-// (fuera del mux autenticado) para los healthchecks del contenedor.
+// NewRouter assembles the RESTful routes of the management API.
+// The path params (Go 1.22+ ServeMux) replace the flat endpoints: the old
+// contract (/api/mode, /api/exclusions, /api/iprules) no longer exists and
+// naturally returns 404. /health does NOT live here: main.go mounts it apart
+// (outside the authenticated mux) for the container healthchecks.
 func NewRouter() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// Endpoints RESTful de configuración de WAF y Seguridad
+	// RESTful WAF and security configuration endpoints
 	mux.HandleFunc("PUT /api/sites/{domain}/mode", HandleSetMode)
 	mux.HandleFunc("PUT /api/sites/{domain}/exclusions", HandleSetExclusions)
 	mux.HandleFunc("PUT /api/sites/{domain}/iprules", HandleSetIPRules)
 
-	// Endpoints RESTful de snapshots y rollback (spec backup-recovery)
+	// RESTful snapshot and rollback endpoints (backup-recovery spec)
 	mux.HandleFunc("GET /api/sites/{domain}/backups", HandleListBackups)
 	mux.HandleFunc("POST /api/sites/{domain}/rollback", HandleRollback)
 
 	return mux
 }
 
-// HealthHandler devuelve el endpoint de estado público. Se monta por
-// separado en main.go, FUERA del middleware de auth, para que los
-// healthchecks del contenedor no necesiten credenciales.
+// HealthHandler returns the public status endpoint. It is mounted separately
+// in main.go, OUTSIDE the auth middleware, so the container healthchecks do
+// not need credentials.
 func HealthHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

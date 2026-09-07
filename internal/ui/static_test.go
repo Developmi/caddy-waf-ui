@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-// TestStaticHandlerServesAssets: los assets autohospedados (pico.min.css,
-// app.css, app.js) deben servirse bajo /static/ sin autenticación y con el
-// contenido embebido en el binario. Los listados de directorio responden 404.
+// TestStaticHandlerServesAssets: the self-hosted assets (pico.min.css,
+// app.css, app.js) must be served under /static/ without authentication and
+// with the content embedded in the binary. Directory listings respond 404.
 func TestStaticHandlerServesAssets(t *testing.T) {
 	handler := http.StripPrefix("/static/", StaticHandler())
 
@@ -18,31 +18,31 @@ func TestStaticHandlerServesAssets(t *testing.T) {
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, asset, nil))
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("%s: se esperaba 200, se obtuvo %d", asset, rec.Code)
+			t.Errorf("%s: expected 200, got %d", asset, rec.Code)
 		}
 		if rec.Body.Len() == 0 {
-			t.Errorf("%s: el asset no puede estar vacío", asset)
+			t.Errorf("%s: the asset cannot be empty", asset)
 		}
 	}
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/", nil))
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("el listado de directorio debe responder 404, se obtuvo %d", rec.Code)
+		t.Errorf("the directory listing must respond 404, got %d", rec.Code)
 	}
 
 	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/no-existe.css", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/no-such-file.css", nil))
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("un asset inexistente debe responder 404, se obtuvo %d", rec.Code)
+		t.Errorf("a nonexistent asset must respond 404, got %d", rec.Code)
 	}
 }
 
-// TestSecurityHeadersAppliesCSP: el middleware debe fijar las cabeceras de
-// seguridad en TODAS las respuestas (páginas, API, login y assets), sin
-// excepciones: CSP autohospedada, X-Content-Type-Options: nosniff (anti MIME
-// sniffing) y Referrer-Policy: no-referrer (las URLs llevan ?search=/?domain=
-// y no deben filtrarse a terceros).
+// TestSecurityHeadersAppliesCSP: the middleware must set the security headers
+// on ALL the responses (pages, API, login and assets), without exceptions:
+// self-hosted CSP, X-Content-Type-Options: nosniff (anti MIME sniffing) and
+// Referrer-Policy: no-referrer (the URLs carry ?search=/?domain= and must not
+// leak to third parties).
 func TestSecurityHeadersAppliesCSP(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -55,27 +55,27 @@ func TestSecurityHeadersAppliesCSP(t *testing.T) {
 
 		got := rec.Header().Get("Content-Security-Policy")
 		if got == "" {
-			t.Errorf("%s: la respuesta debe llevar Content-Security-Policy", path)
+			t.Errorf("%s: the response must carry Content-Security-Policy", path)
 		}
 		if !strings.Contains(got, "default-src 'self'") || !strings.Contains(got, "script-src 'self'") {
-			t.Errorf("%s: la CSP debe permitir solo orígenes propios, se obtuvo %q", path, got)
+			t.Errorf("%s: the CSP must allow only same-origin sources, got %q", path, got)
 		}
 		if ct := rec.Header().Get("X-Content-Type-Options"); ct != "nosniff" {
-			t.Errorf("%s: se esperaba X-Content-Type-Options: nosniff, se obtuvo %q", path, ct)
+			t.Errorf("%s: expected X-Content-Type-Options: nosniff, got %q", path, ct)
 		}
 		if rp := rec.Header().Get("Referrer-Policy"); rp != "no-referrer" {
-			t.Errorf("%s: se esperaba Referrer-Policy: no-referrer, se obtuvo %q", path, rp)
+			t.Errorf("%s: expected Referrer-Policy: no-referrer, got %q", path, rp)
 		}
 	}
 }
 
-// TestSecurityHeadersHSTS (SH-2): Strict-Transport-Security debe emitirse SOLO
-// cuando X-Forwarded-Proto es "https" (comparación case-insensitive: Caddy lo
-// agrega como "https" en reverse_proxy cuando el request original entró por
-// TLS). El valor debe ser exactamente "max-age=31536000" (1 año, OWASP): sin
-// includeSubDomains ni preload (no-goals del cambio). Sin XFP o con un proto
-// distinto de https, la cabecera debe estar ausente (RFC 6797: es inerte en
-// HTTP plano).
+// TestSecurityHeadersHSTS (SH-2): Strict-Transport-Security must be emitted
+// ONLY when X-Forwarded-Proto is "https" (case-insensitive comparison: Caddy
+// adds it as "https" in reverse_proxy when the original request entered over
+// TLS). The value must be exactly "max-age=31536000" (1 year, OWASP):
+// without includeSubDomains nor preload (no-goals of the change). Without
+// XFP or with a proto other than https, the header must be absent (RFC 6797:
+// it is inert over plain HTTP).
 func TestSecurityHeadersHSTS(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -84,8 +84,8 @@ func TestSecurityHeadersHSTS(t *testing.T) {
 
 	tests := []struct {
 		name string
-		xfp  string // valor de X-Forwarded-Proto; "" = cabecera ausente
-		want string // valor esperado de Strict-Transport-Security; "" = ausente
+		xfp  string // value of X-Forwarded-Proto; "" = header absent
+		want string // expected value of Strict-Transport-Security; "" = absent
 	}{
 		{"proxy https", "https", "max-age=31536000"},
 		{"proxy HTTPS mayusculas", "HTTPS", "max-age=31536000"},
@@ -104,12 +104,12 @@ func TestSecurityHeadersHSTS(t *testing.T) {
 			got := rec.Header().Get("Strict-Transport-Security")
 			if tt.want == "" {
 				if got != "" {
-					t.Errorf("X-Forwarded-Proto %q: se esperaba ausencia de Strict-Transport-Security, se obtuvo %q", tt.xfp, got)
+					t.Errorf("X-Forwarded-Proto %q: expected no Strict-Transport-Security, got %q", tt.xfp, got)
 				}
 				return
 			}
 			if got != tt.want {
-				t.Errorf("X-Forwarded-Proto %q: se esperaba Strict-Transport-Security exacto %q, se obtuvo %q", tt.xfp, tt.want, got)
+				t.Errorf("X-Forwarded-Proto %q: expected exact Strict-Transport-Security %q, got %q", tt.xfp, tt.want, got)
 			}
 		})
 	}

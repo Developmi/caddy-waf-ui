@@ -14,12 +14,12 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/waf"
 )
 
-// ErrInvalidMode señala un modo WAF no soportado: los handlers REST lo
-// traducen a 400 Bad Request.
-var ErrInvalidMode = errors.New("modo WAF inválido: solo se admiten On, Off o DetectionOnly")
+// ErrInvalidMode signals an unsupported WAF mode: REST handlers translate it
+// to 400 Bad Request.
+var ErrInvalidMode = errors.New("invalid WAF mode: only On, Off or DetectionOnly are supported")
 
-// readPreviousState captura los bytes actuales del overlay (si existe) para
-// poder restaurarlos si la recarga de Caddy falla (decisión D6).
+// readPreviousState captures the current bytes of the overlay (if it exists)
+// so they can be restored if the Caddy reload fails (decision D6).
 func readPreviousState(confPath string) ([]byte, bool, error) {
 	content, err := os.ReadFile(confPath)
 	if os.IsNotExist(err) {
@@ -31,10 +31,11 @@ func readPreviousState(confPath string) ([]byte, bool, error) {
 	return content, true, nil
 }
 
-// restoreState revierte el overlay a su estado previo (D6): restaura los bytes
-// originales si el archivo existía, o lo elimina si no existía. Es el
-// equivalente observable de "restaurar el backup del paso 1" sin depender del
-// nombre del snapshot (que Fase 4 formaliza con files.RestoreBackup).
+// restoreState reverts the overlay to its previous state (D6): it restores
+// the original bytes if the file existed, or removes it if it did not. It is
+// the observable equivalent of "restoring the backup of step 1" without
+// depending on the snapshot name (which Phase 4 formalizes with
+// files.RestoreBackup).
 func restoreState(confPath string, previous []byte, existed bool) error {
 	if !existed {
 		if err := os.Remove(confPath); err != nil && !os.IsNotExist(err) {
@@ -45,58 +46,58 @@ func restoreState(confPath string, previous []byte, existed bool) error {
 	return files.AtomicWrite(confPath, previous)
 }
 
-// chainOpts agrupa las particularidades de cada entrada pública de la cadena
-// compartida validate → backup → generate → write → reload → restore → audit
-// (hallazgo J5-2): antes vivía copy-pasteada 4 veces (UpdateWAFMode,
-// UpdateExclusions, UpdateIPRules, Rollback) y ya había divergido. El flujo de
-// error/restore/audit vive una sola vez en runChain; cada entrada aporta sus
-// nombres de evento, campos de auditoría y el paso de mutación.
+// chainOpts groups the particularities of each public entry of the shared
+// chain validate → backup → generate → write → reload → restore → audit
+// (finding J5-2): it used to be copy-pasted 4 times (UpdateWAFMode,
+// UpdateExclusions, UpdateIPRules, Rollback) and had already diverged. The
+// error/restore/audit flow lives once in runChain; each entry contributes its
+// event names, audit fields and the mutation step.
 type chainOpts struct {
-	// fileType es el tipo de overlay/snapshot: files.FileTypeWAF,
-	// files.FileTypeExclusions o files.FileTypeIPRules.
+	// fileType is the overlay/snapshot type: files.FileTypeWAF,
+	// files.FileTypeExclusions or files.FileTypeIPRules.
 	fileType string
-	// confPath es la ruta del overlay gestionado que la cadena escribe.
+	// confPath is the path of the managed overlay that the chain writes.
 	confPath string
-	// failEvent es el evento de auditoría de los fallos previos a la recarga
-	// (p.ej. "waf_mode_failed").
+	// failEvent is the audit event of the failures prior to the reload
+	// (e.g. "waf_mode_failed").
 	failEvent string
-	// reloadFailEvent es el evento de auditoría del fallo de recarga
-	// (p.ej. "waf_mode_changed_but_reload_failed").
+	// reloadFailEvent is the audit event of the reload failure
+	// (e.g. "waf_mode_changed_but_reload_failed").
 	reloadFailEvent string
-	// successEvent es el evento de auditoría del éxito (p.ej. "waf_mode_changed").
+	// successEvent is the audit event of the success (e.g. "waf_mode_changed").
 	successEvent string
-	// from es el campo "from" del log de auditoría en TODOS los eventos de la
-	// cadena (LogAction normaliza "" → "unknown").
+	// from is the "from" field of the audit log in ALL the events of the
+	// chain (LogAction normalizes "" → "unknown").
 	from string
-	// failTo es el campo "to" de los fallos previos a la recarga (suele ser ""
-	// salvo UpdateWAFMode, que reporta el modo).
+	// failTo is the "to" field of the failures prior to the reload (usually
+	// "" except UpdateWAFMode, which reports the mode).
 	failTo string
-	// to es el campo "to" del fallo de recarga y del éxito (modo, detalle de
-	// reglas o tipo de overlay).
+	// to is the "to" field of the reload failure and of the success (mode,
+	// rules detail or overlay type).
 	to string
-	// mutate produce y escribe los bytes del overlay. Para los cambios
-	// (mode/exclusions/ip-rules) es generate + AtomicWrite; para el rollback
-	// es files.RestoreBackup. Debe auditar su propio fallo (failEvent) y
-	// envolver el error con el mensaje de su etapa.
+	// mutate produces and writes the overlay bytes. For the changes
+	// (mode/exclusions/ip-rules) it is generate + AtomicWrite; for the
+	// rollback it is files.RestoreBackup. It must audit its own failure
+	// (failEvent) and wrap the error with the message of its stage.
 	mutate func() error
 }
 
-// runChain ejecuta la cadena compartida: leer estado previo → backup →
-// mutar → recargar Caddy → (si falla) restaurar → auditar (D2/D6). El
-// comportamiento de error/restore/audit es idéntico para las cuatro entradas:
-// los mensajes de error que los tests asertan ("error leyendo estado previo",
-// "error creando backup", "error recargando Caddy", "error restaurando
-// overlay") se generan AQUÍ.
+// runChain runs the shared chain: read previous state → backup → mutate →
+// reload Caddy → (on failure) restore → audit (D2/D6). The
+// error/restore/audit behavior is identical for the four entries: the error
+// messages that the tests assert ("error reading previous state", "error
+// creating backup", "error reloading Caddy", "error restoring overlay") are
+// generated HERE.
 func runChain(domainName, remoteIP string, opts chainOpts) error {
 	previous, existed, err := readPreviousState(opts.confPath)
 	if err != nil {
 		logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "read error: "+err.Error())
-		return fmt.Errorf("error leyendo estado previo: %w", err)
+		return fmt.Errorf("error reading previous state: %w", err)
 	}
 
 	if err := files.Backup(domainName, opts.fileType); err != nil {
 		logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "backup error: "+err.Error())
-		return fmt.Errorf("error creando backup: %w", err)
+		return fmt.Errorf("error creating backup: %w", err)
 	}
 
 	if err := opts.mutate(); err != nil {
@@ -111,21 +112,21 @@ func runChain(domainName, remoteIP string, opts chainOpts) error {
 		}
 		logs.LogAction(opts.reloadFailEvent, domainName, opts.from, opts.to, remoteIP, reloadStatus)
 		if restoreErr != nil {
-			return fmt.Errorf("error recargando Caddy: %v; error restaurando overlay: %w", err, restoreErr)
+			return fmt.Errorf("error reloading Caddy: %v; error restoring overlay: %w", err, restoreErr)
 		}
-		return fmt.Errorf("error recargando Caddy: %w", err)
+		return fmt.Errorf("error reloading Caddy: %w", err)
 	}
 
 	logs.LogAction(opts.successEvent, domainName, opts.from, opts.to, remoteIP, "success")
 	return nil
 }
 
-// UpdateWAFMode ejecuta la cadena compartida validate → backup → generate →
-// write → reload → audit para el modo del motor WAF (D2/D6).
+// UpdateWAFMode runs the shared chain validate → backup → generate →
+// write → reload → audit for the WAF engine mode (D2/D6).
 func UpdateWAFMode(domainName string, mode domain.WAFMode, remoteIP string) error {
-	// Validación estricta del dominio ANTES de cualquier uso en rutas,
-	// plantillas o backups (hallazgo J2): bloquea la inyección de directivas
-	// Caddyfile vía la cabecera "# domain:" y el path traversal de backups.
+	// Strict domain validation BEFORE any use in paths, templates or backups
+	// (finding J2): it blocks Caddyfile directive injection via the
+	// "# domain:" header and backup path traversal.
 	if err := ValidateDomain(domainName); err != nil {
 		return err
 	}
@@ -149,23 +150,23 @@ func UpdateWAFMode(domainName string, mode domain.WAFMode, remoteIP string) erro
 		snippet, err := waf.GenerateSnippet(site, config.AuditLogPath(), config.IncludeDir())
 		if err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "generate error: "+err.Error())
-			return fmt.Errorf("error generando configuración: %w", err)
+			return fmt.Errorf("error generating configuration: %w", err)
 		}
 		if err := files.AtomicWrite(opts.confPath, snippet); err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "write error: "+err.Error())
-			return fmt.Errorf("error escribiendo configuración: %w", err)
+			return fmt.Errorf("error writing configuration: %w", err)
 		}
 		return nil
 	}
 	return runChain(domainName, remoteIP, opts)
 }
 
-// UpdateExclusions ejecuta la cadena compartida para las exclusiones CRS del
-// dominio, incluyendo las targeteadas por parámetro ARGS:<param> (D5).
+// UpdateExclusions runs the shared chain for the CRS exclusions of the
+// domain, including the ones targeted by the ARGS:<param> parameter (D5).
 func UpdateExclusions(domainName string, exclusions []waf.Exclusion, remoteIP string) error {
-	// Validación estricta del dominio ANTES de cualquier uso en rutas,
-	// plantillas o backups (hallazgo J2): bloquea la inyección de directivas
-	// Caddyfile vía la cabecera "# domain:" y el path traversal de backups.
+	// Strict domain validation BEFORE any use in paths, templates or backups
+	// (finding J2): it blocks Caddyfile directive injection via the
+	// "# domain:" header and backup path traversal.
 	if err := ValidateDomain(domainName); err != nil {
 		return err
 	}
@@ -187,23 +188,23 @@ func UpdateExclusions(domainName string, exclusions []waf.Exclusion, remoteIP st
 		snippet, err := waf.GenerateExclusions(site, exclusions)
 		if err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "generate error: "+err.Error())
-			return fmt.Errorf("error generando configuración: %w", err)
+			return fmt.Errorf("error generating configuration: %w", err)
 		}
 		if err := files.AtomicWrite(opts.confPath, snippet); err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "write error: "+err.Error())
-			return fmt.Errorf("error escribiendo configuración: %w", err)
+			return fmt.Errorf("error writing configuration: %w", err)
 		}
 		return nil
 	}
 	return runChain(domainName, remoteIP, opts)
 }
 
-// UpdateIPRules ejecuta la cadena compartida para las listas allow/deny del
-// dominio. Las entradas IP se validan y normalizan ANTES del backup.
+// UpdateIPRules runs the shared chain for the allow/deny lists of the
+// domain. The IP entries are validated and normalized BEFORE the backup.
 func UpdateIPRules(domainName string, rules iprules.IPRules, remoteIP string) error {
-	// Validación estricta del dominio ANTES de cualquier uso en rutas,
-	// plantillas o backups (hallazgo J2): bloquea la inyección de directivas
-	// Caddyfile vía la cabecera "# domain:" y el path traversal de backups.
+	// Strict domain validation BEFORE any use in paths, templates or backups
+	// (finding J2): it blocks Caddyfile directive injection via the
+	// "# domain:" header and backup path traversal.
 	if err := ValidateDomain(domainName); err != nil {
 		return err
 	}
@@ -225,31 +226,32 @@ func UpdateIPRules(domainName string, rules iprules.IPRules, remoteIP string) er
 		snippet, err := iprules.GenerateSnippet(site, rules)
 		if err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "generate error: "+err.Error())
-			return fmt.Errorf("error generando configuración: %w", err)
+			return fmt.Errorf("error generating configuration: %w", err)
 		}
 		if err := files.AtomicWrite(opts.confPath, snippet); err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "write error: "+err.Error())
-			return fmt.Errorf("error escribiendo configuración: %w", err)
+			return fmt.Errorf("error writing configuration: %w", err)
 		}
 		return nil
 	}
 	return runChain(domainName, remoteIP, opts)
 }
 
-// Rollback restaura un snapshot de configuración (nombre completo
-// {ISO8601}.{tipo}.conf) sobre el overlay de su tipo a través de la cadena
-// compartida: validar → respaldar estado actual → restaurar bytes → recargar
-// → auditar. Si la recarga falla, el overlay vuelve al estado previo (D6).
+// Rollback restores a configuration snapshot (full name {ISO8601}.{type}.conf)
+// over the overlay of its type through the shared chain: validate → back up
+// the current state → restore bytes → reload → audit. If the reload fails,
+// the overlay returns to the previous state (D6).
 func Rollback(domainName, backupID, remoteIP string) error {
-	// Validación estricta del dominio ANTES de cualquier uso en rutas,
-	// plantillas o backups (hallazgo J2): bloquea la inyección de directivas
-	// Caddyfile vía la cabecera "# domain:" y el path traversal de backups.
+	// Strict domain validation BEFORE any use in paths, templates or backups
+	// (finding J2): it blocks Caddyfile directive injection via the
+	// "# domain:" header and backup path traversal.
 	if err := ValidateDomain(domainName); err != nil {
 		return err
 	}
 
-	// 0. Validar el nombre del snapshot y derivar tipo + ruta conf ANTES de
-	//    mutar estado (fail-fast; el patrón estricto bloquea path traversal).
+	// 0. Validate the snapshot name and derive type + conf path BEFORE
+	//    mutating any state (fail-fast; the strict pattern blocks path
+	//    traversal).
 	fileType, err := files.BackupType(backupID)
 	if err != nil {
 		logs.LogAction("rollback_failed", domainName, backupID, "", remoteIP, err.Error())
@@ -271,10 +273,10 @@ func Rollback(domainName, backupID, remoteIP string) error {
 		to:              fileType,
 	}
 	opts.mutate = func() error {
-		// Restaurar los bytes del snapshot elegido sobre el overlay (bytes → conf).
+		// Restore the bytes of the chosen snapshot over the overlay (bytes → conf).
 		if err := files.RestoreBackup(domainName, backupID); err != nil {
 			logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "restore error: "+err.Error())
-			return fmt.Errorf("error restaurando snapshot: %w", err)
+			return fmt.Errorf("error restoring snapshot: %w", err)
 		}
 		return nil
 	}

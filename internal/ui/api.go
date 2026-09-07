@@ -13,46 +13,46 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/waf"
 )
 
-// ModeRequest define el cuerpo esperado para cambiar el modo del WAF.
+// ModeRequest defines the expected body for changing the mode of the WAF.
 type ModeRequest struct {
 	Mode domain.WAFMode `json:"mode"`
 }
 
-// ExclusionsRequest define el cuerpo esperado para actualizar exclusiones.
+// ExclusionsRequest defines the expected body for updating exclusions.
 type ExclusionsRequest struct {
 	Exclusions []waf.Exclusion `json:"exclusions"`
 }
 
-// RollbackRequest define el cuerpo esperado para restaurar un snapshot:
-// el nombre completo del backup ("{ISO8601}.{tipo}.conf", contrato D2).
+// RollbackRequest defines the expected body for restoring a snapshot:
+// the full backup name ("{ISO8601}.{type}.conf", contract D2).
 type RollbackRequest struct {
 	Backup string `json:"backup"`
 }
 
-// maxBodyBytes limita el tamaño de los cuerpos JSON de la API (defensa
-// contra DoS por memoria, hallazgo J1): 1 MiB es suficiente para los
-// payloads de configuración que gestiona la UI.
+// maxBodyBytes bounds the size of the JSON API bodies (defense against
+// memory DoS, finding J1): 1 MiB is enough for the configuration payloads
+// managed by the UI.
 const maxBodyBytes = 1 << 20
 
-// decodeJSONBody decodifica el cuerpo JSON de un request con un tope de
-// tamaño. Un cuerpo que supera el límite responde 413; cualquier otro error
-// de decode responde 400 (mismo estilo de error que los handlers previos).
+// decodeJSONBody decodes the JSON body of a request with a size cap. A body
+// over the limit responds 413; any other decode error responds 400 (same
+// error style as the previous handlers).
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			http.Error(w, "Payload demasiado grande", http.StatusRequestEntityTooLarge)
+			http.Error(w, "Payload too large", http.StatusRequestEntityTooLarge)
 		} else {
-			http.Error(w, "Payload inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid payload", http.StatusBadRequest)
 		}
 		return err
 	}
 	return nil
 }
 
-// clientIP extrae la IP del cliente de r.RemoteAddr (formato host:port) para
-// que el campo remote_ip del log de auditoría no arrastre el puerto.
+// clientIP extracts the client IP from r.RemoteAddr (host:port format) so
+// the remote_ip field of the audit log does not drag the port along.
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -61,16 +61,17 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
-// writeJSON responde con un JSON plano de confirmación (contrato REST).
+// writeJSON responds with a plain JSON confirmation (REST contract).
 func writeJSON(w http.ResponseWriter, status int, body string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write([]byte(body))
 }
 
-// HandleSetMode cambia el modo del motor WAF de un dominio (RESTful).
-// El dominio llega por path param (Go 1.22+ ServeMux) y la cadena compartida
-// (validate → backup → generate → write → reload → audit) vive en service.
+// HandleSetMode changes the WAF engine mode of a domain (RESTful).
+// The domain arrives as a path param (Go 1.22+ ServeMux) and the shared
+// chain (validate → backup → generate → write → reload → audit) lives in
+// service.
 func HandleSetMode(w http.ResponseWriter, r *http.Request) {
 	domainName := r.PathValue("domain")
 
@@ -81,23 +82,23 @@ func HandleSetMode(w http.ResponseWriter, r *http.Request) {
 
 	if err := service.UpdateWAFMode(domainName, req.Mode, clientIP(r)); err != nil {
 		if errors.Is(err, service.ErrInvalidDomain) {
-			http.Error(w, "Dominio inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid domain", http.StatusBadRequest)
 			return
 		}
 		if errors.Is(err, service.ErrInvalidMode) {
-			http.Error(w, "Modo WAF inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid WAF mode", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Error aplicando la configuración", http.StatusInternalServerError)
+		http.Error(w, "Error applying the configuration", http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, `{"status":"success"}`)
 }
 
-// HandleSetExclusions actualiza las exclusiones CRS de un dominio (RESTful).
-// La validación del payload ocurre ANTES de la cadena (defensa en profundidad:
-// la cadena vuelve a validar): un payload inválido es 400, no 500.
+// HandleSetExclusions updates the CRS exclusions of a domain (RESTful).
+// The payload validation happens BEFORE the chain (defense in depth: the
+// chain re-validates): an invalid payload is 400, not 500.
 func HandleSetExclusions(w http.ResponseWriter, r *http.Request) {
 	domainName := r.PathValue("domain")
 
@@ -113,19 +114,19 @@ func HandleSetExclusions(w http.ResponseWriter, r *http.Request) {
 
 	if err := service.UpdateExclusions(domainName, req.Exclusions, clientIP(r)); err != nil {
 		if errors.Is(err, service.ErrInvalidDomain) {
-			http.Error(w, "Dominio inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid domain", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Error aplicando la configuración", http.StatusInternalServerError)
+		http.Error(w, "Error applying the configuration", http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, `{"status":"success"}`)
 }
 
-// HandleSetIPRules actualiza las listas allow/deny de un dominio (RESTful).
-// La validación del payload ocurre ANTES de la cadena (defensa en profundidad:
-// la cadena vuelve a validar): un payload inválido es 400, no 500.
+// HandleSetIPRules updates the allow/deny lists of a domain (RESTful).
+// The payload validation happens BEFORE the chain (defense in depth: the
+// chain re-validates): an invalid payload is 400, not 500.
 func HandleSetIPRules(w http.ResponseWriter, r *http.Request) {
 	domainName := r.PathValue("domain")
 
@@ -141,24 +142,24 @@ func HandleSetIPRules(w http.ResponseWriter, r *http.Request) {
 
 	if err := service.UpdateIPRules(domainName, req, clientIP(r)); err != nil {
 		if errors.Is(err, service.ErrInvalidDomain) {
-			http.Error(w, "Dominio inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid domain", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Error aplicando la configuración", http.StatusInternalServerError)
+		http.Error(w, "Error applying the configuration", http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, `{"status":"success"}`)
 }
 
-// HandleListBackups lista los snapshots de configuración de un dominio
-// (RESTful, spec backup-recovery). Sin backups responde 200 con [].
+// HandleListBackups lists the configuration snapshots of a domain (RESTful,
+// backup-recovery spec). Without backups it responds 200 with [].
 func HandleListBackups(w http.ResponseWriter, r *http.Request) {
 	domainName := r.PathValue("domain")
 
 	snapshots, err := files.ListBackups(domainName)
 	if err != nil {
-		http.Error(w, "Error listando backups", http.StatusInternalServerError)
+		http.Error(w, "Error listing backups", http.StatusInternalServerError)
 		return
 	}
 
@@ -166,9 +167,9 @@ func HandleListBackups(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(snapshots)
 }
 
-// HandleRollback restaura un snapshot de configuración de un dominio
-// (RESTful): el cuerpo lleva el nombre completo del backup y la cadena
-// compartida ejecuta validar → respaldar → restaurar → recargar → auditar.
+// HandleRollback restores a configuration snapshot of a domain (RESTful):
+// the body carries the full backup name and the shared chain runs validate →
+// back up → restore → reload → audit.
 func HandleRollback(w http.ResponseWriter, r *http.Request) {
 	domainName := r.PathValue("domain")
 
@@ -179,14 +180,14 @@ func HandleRollback(w http.ResponseWriter, r *http.Request) {
 
 	if err := service.Rollback(domainName, req.Backup, clientIP(r)); err != nil {
 		if errors.Is(err, service.ErrInvalidDomain) {
-			http.Error(w, "Dominio inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid domain", http.StatusBadRequest)
 			return
 		}
 		if errors.Is(err, files.ErrInvalidBackup) {
-			http.Error(w, "Snapshot de configuración inválido", http.StatusBadRequest)
+			http.Error(w, "Invalid configuration snapshot", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "Error restaurando la configuración", http.StatusInternalServerError)
+		http.Error(w, "Error restoring the configuration", http.StatusInternalServerError)
 		return
 	}
 
