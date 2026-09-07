@@ -26,33 +26,33 @@ example.com {
 func TestReload(t *testing.T) {
 	caddyfilePath := filepath.Join(t.TempDir(), "Caddyfile")
 	if err := os.WriteFile(caddyfilePath, []byte(testCaddyfileContent), 0o600); err != nil {
-		t.Fatalf("no se pudo escribir el Caddyfile de prueba: %v", err)
+		t.Fatalf("failed to write test Caddyfile: %v", err)
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/config/apps/http/servers":
-			// Read-back (D3): la config viva refleja el host del Caddyfile enviado.
+			// Read-back (D3): the live config reflects the host of the submitted Caddyfile.
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = fmt.Fprint(w, `{"srv0":{"routes":[{"match":[{"host":["example.com"]}]}]}}`)
 			return
 		case r.Method != http.MethodPost:
-			t.Errorf("Reload debería usar POST, pero usó %s", r.Method)
+			t.Errorf("Reload should use POST, but used %s", r.Method)
 		case r.URL.Path != "/load":
-			t.Errorf("Reload debería apuntar a /load, pero fue %s", r.URL.Path)
+			t.Errorf("Reload should target /load, but was %s", r.URL.Path)
 		}
 
 		if ct := r.Header.Get("Content-Type"); ct != "text/caddyfile" {
-			t.Errorf("Content-Type debería ser text/caddyfile, pero fue %q", ct)
+			t.Errorf("Content-Type should be text/caddyfile, but was %q", ct)
 		}
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Errorf("no se pudo leer el body del request: %v", err)
+			t.Errorf("could not read the request body: %v", err)
 		}
 
 		if string(body) != testCaddyfileContent {
-			t.Errorf("el body del reload no coincide con el Caddyfile\nEsperado:\n%s\nRecibido:\n%s", testCaddyfileContent, string(body))
+			t.Errorf("the reload body does not match the Caddyfile\nExpected:\n%s\nReceived:\n%s", testCaddyfileContent, string(body))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -63,30 +63,30 @@ func TestReload(t *testing.T) {
 	t.Setenv("CADDY_UI_CADDYFILE", caddyfilePath)
 
 	if err := caddy.Reload(); err != nil {
-		t.Fatalf("Reload falló inesperadamente: %v", err)
+		t.Fatalf("Reload failed unexpectedly: %v", err)
 	}
 
 	rb := caddy.LastReadback()
 	if !rb.OK {
-		t.Errorf("el read-back debería estar OK tras un reload exitoso, pero fue: %+v", rb)
+		t.Errorf("read-back should be OK after a successful reload, but was: %+v", rb)
 	}
 	if rb.Servers != 1 {
-		t.Errorf("el read-back debería reportar 1 server, pero reportó %d", rb.Servers)
+		t.Errorf("read-back should report 1 server, but reported %d", rb.Servers)
 	}
 }
 
-// TestReloadReadbackMismatch verifica el fail-loud (D3): si la config viva NO
-// refleja los hosts del Caddyfile enviado, Reload devuelve error para que la
-// cadena D6 restaure el overlay previo.
+// TestReloadReadbackMismatch verifies the fail-loud (D3): if the live config
+// does NOT reflect the hosts of the submitted Caddyfile, Reload returns an
+// error so the D6 chain can restore the previous overlay.
 func TestReloadReadbackMismatch(t *testing.T) {
 	caddyfilePath := filepath.Join(t.TempDir(), "Caddyfile")
 	if err := os.WriteFile(caddyfilePath, []byte(testCaddyfileContent), 0o600); err != nil {
-		t.Fatalf("no se pudo escribir el Caddyfile de prueba: %v", err)
+		t.Fatalf("failed to write test Caddyfile: %v", err)
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/config/apps/http/servers" {
-			// La config viva NO contiene example.com.
+			// The live config does NOT contain example.com.
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = fmt.Fprint(w, `{"srv0":{"routes":[{"match":[{"host":["other.com"]}]}]}}`)
 			return
@@ -100,28 +100,28 @@ func TestReloadReadbackMismatch(t *testing.T) {
 
 	err := caddy.Reload()
 	if err == nil {
-		t.Fatal("Reload debería fallar cuando el read-back no encuentra los hosts enviados")
+		t.Fatal("Reload should fail when the read-back does not find the submitted hosts")
 	}
 	if !strings.Contains(err.Error(), "read-back") {
-		t.Errorf("el error debería mencionar el read-back, pero fue: %v", err)
+		t.Errorf("the error should mention the read-back, but was: %v", err)
 	}
 
 	rb := caddy.LastReadback()
 	if rb.OK {
-		t.Error("el estado de read-back debería marcar fallo en un mismatch")
+		t.Error("the read-back state should be marked as failed on a mismatch")
 	}
 	if len(rb.Missing) != 1 || rb.Missing[0] != "example.com" {
-		t.Errorf("Missing debería listar example.com, pero fue: %v", rb.Missing)
+		t.Errorf("Missing should list example.com, but was: %v", rb.Missing)
 	}
 }
 
-// TestReloadReadbackUnavailable verifica que un GET /config no disponible
-// (error de red o HTTP no-200) también falla loud: la verificación no puede
-// confirmarse y el estado queda registrado.
+// TestReloadReadbackUnavailable verifies that an unavailable GET /config
+// (network error or non-200 HTTP) also fails loud: the verification cannot be
+// confirmed and the state is recorded.
 func TestReloadReadbackUnavailable(t *testing.T) {
 	caddyfilePath := filepath.Join(t.TempDir(), "Caddyfile")
 	if err := os.WriteFile(caddyfilePath, []byte(testCaddyfileContent), 0o600); err != nil {
-		t.Fatalf("no se pudo escribir el Caddyfile de prueba: %v", err)
+		t.Fatalf("failed to write test Caddyfile: %v", err)
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -138,15 +138,15 @@ func TestReloadReadbackUnavailable(t *testing.T) {
 
 	err := caddy.Reload()
 	if err == nil {
-		t.Fatal("Reload debería fallar si el read-back no está disponible")
+		t.Fatal("Reload should fail if the read-back is unavailable")
 	}
-	if !strings.Contains(err.Error(), "verificación post-reload") {
-		t.Errorf("el error debería mencionar la verificación post-reload, pero fue: %v", err)
+	if !strings.Contains(err.Error(), "post-reload verification") {
+		t.Errorf("the error should mention the post-reload verification, but was: %v", err)
 	}
 
 	rb := caddy.LastReadback()
 	if rb.OK {
-		t.Error("el estado de read-back debería marcar fallo cuando la verificación no está disponible")
+		t.Error("the read-back state should be marked as failed when the verification is unavailable")
 	}
 }
 
@@ -155,11 +155,11 @@ func TestReloadMissingCaddyfile(t *testing.T) {
 
 	err := caddy.Reload()
 	if err == nil {
-		t.Fatal("Reload debería fallar si el Caddyfile no existe, pero no devolvió error")
+		t.Fatal("Reload should fail if the Caddyfile does not exist, but returned no error")
 	}
 
 	if !strings.Contains(err.Error(), "Caddyfile") {
-		t.Errorf("el error debería mencionar el Caddyfile, pero fue: %v", err)
+		t.Errorf("the error should mention the Caddyfile, but was: %v", err)
 	}
 }
 
@@ -197,9 +197,9 @@ func TestReloadRejectsInvalidAdminURL(t *testing.T) {
 	}
 }
 
-// TestReloadDoesNotFollowRedirectOnLoad: si POST /load responde 302, el
-// cliente NO debe seguir la redirección: Reload falla (no-200) y el destino
-// del redirect nunca recibe el request.
+// TestReloadDoesNotFollowRedirectOnLoad: if POST /load responds 302, the
+// client must NOT follow the redirect: Reload fails (non-200) and the
+// redirect target never receives the request.
 func TestReloadDoesNotFollowRedirectOnLoad(t *testing.T) {
 	caddyfilePath := filepath.Join(t.TempDir(), "Caddyfile")
 	if err := os.WriteFile(caddyfilePath, []byte(testCaddyfileContent), 0o600); err != nil {
@@ -234,9 +234,9 @@ func TestReloadDoesNotFollowRedirectOnLoad(t *testing.T) {
 	}
 }
 
-// TestReloadDoesNotFollowRedirectOnReadback: el GET /config del read-back
-// (D3) tampoco sigue redirecciones: Reload falla en la verificación y el
-// destino del redirect nunca se pide.
+// TestReloadDoesNotFollowRedirectOnReadback: the read-back (D3) GET /config
+// also does not follow redirects: Reload fails the verification and the
+// redirect target is never requested.
 func TestReloadDoesNotFollowRedirectOnReadback(t *testing.T) {
 	caddyfilePath := filepath.Join(t.TempDir(), "Caddyfile")
 	if err := os.WriteFile(caddyfilePath, []byte(testCaddyfileContent), 0o600); err != nil {
@@ -267,7 +267,7 @@ func TestReloadDoesNotFollowRedirectOnReadback(t *testing.T) {
 	if err == nil {
 		t.Fatal("Reload should fail when the read-back GET /config redirects")
 	}
-	if !strings.Contains(err.Error(), "verificación post-reload") {
+	if !strings.Contains(err.Error(), "post-reload verification") {
 		t.Errorf("error should mention the post-reload verification, got: %v", err)
 	}
 	if redirectHits != 0 {
@@ -278,9 +278,10 @@ func TestReloadDoesNotFollowRedirectOnReadback(t *testing.T) {
 	}
 }
 
-// TestReloadReadbackWithRealCaddyfile: un Caddyfile real del repo (bloque
-// global con email/log/format y sitios con header/tls) no debe confundir las
-// directivas de Caddy con hosts: el read-back (D3) solo compara hostnames.
+// TestReloadReadbackWithRealCaddyfile: a real Caddyfile from the repo
+// (global block with email/log/format and sites with header/tls) must not
+// confuse Caddy directives with hosts: the read-back (D3) only compares
+// hostnames.
 func TestReloadReadbackWithRealCaddyfile(t *testing.T) {
 	caddyfilePath := filepath.Join(t.TempDir(), "Caddyfile")
 	caddyfile := `{

@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// okHandler es el handler "siguiente" en las pruebas de middleware.
+// okHandler is the "next" handler used in the middleware tests.
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 })
 
-// cookieSesion recupera la cookie CADDY_UI_TOKEN del recorder.
+// cookieSesion retrieves the CADDY_UI_TOKEN cookie from the recorder.
 func cookieSesion(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
 	for _, c := range rec.Result().Cookies() {
@@ -22,7 +22,7 @@ func cookieSesion(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 			return c
 		}
 	}
-	t.Fatalf("no se encontró la cookie %s en la respuesta", sessionCookieName)
+	t.Fatalf("cookie %s not found in the response", sessionCookieName)
 	return nil
 }
 
@@ -31,27 +31,27 @@ func TestLoginSetsSessionCookieFlags(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if !Login(rec, "super-secret-token") {
-		t.Fatal("login con token válido debe devolver true")
+		t.Fatal("login with a valid token must return true")
 	}
 
 	c := cookieSesion(t, rec)
 	if c.Value != "super-secret-token" {
-		t.Errorf("la cookie debe transportar el token, se obtuvo %q", c.Value)
+		t.Errorf("the cookie must carry the token, got %q", c.Value)
 	}
 	if !c.HttpOnly {
-		t.Error("la cookie de sesión debe ser HttpOnly")
+		t.Error("the session cookie must be HttpOnly")
 	}
 	if !c.Secure {
-		t.Error("la cookie de sesión debe ser Secure (loopback es contexto seguro, D3)")
+		t.Error("the session cookie must be Secure (loopback is a secure context, D3)")
 	}
 	if c.SameSite != http.SameSiteStrictMode {
-		t.Errorf("la cookie de sesión debe ser SameSite=Strict, se obtuvo %v", c.SameSite)
+		t.Errorf("the session cookie must be SameSite=Strict, got %v", c.SameSite)
 	}
 	if c.Path != "/" {
-		t.Errorf("la cookie debe tener Path=/, se obtuvo %q", c.Path)
+		t.Errorf("the cookie must have Path=/, got %q", c.Path)
 	}
 	if c.MaxAge != 43200 {
-		t.Errorf("la cookie de sesión debe expirar a las 12h (Max-Age=43200, SC-1), se obtuvo %d", c.MaxAge)
+		t.Errorf("the session cookie must expire after 12h (Max-Age=43200, SC-1), got %d", c.MaxAge)
 	}
 }
 
@@ -60,10 +60,10 @@ func TestLoginRejectsWrongToken(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if Login(rec, "token-incorrecto") {
-		t.Fatal("login con token inválido debe devolver false")
+		t.Fatal("login with an invalid token must return false")
 	}
 	if rec.Result().Cookies() != nil && len(rec.Result().Cookies()) > 0 {
-		t.Error("no debe fijarse cookie con credencial inválida")
+		t.Error("no cookie must be set with an invalid credential")
 	}
 }
 
@@ -72,10 +72,10 @@ func TestLoginRejectsWhenTokenUnset(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if Login(rec, "") {
-		t.Error("sin token configurado no puede haber login")
+		t.Error("with no token configured there can be no login")
 	}
 	if Login(rec, "super-secret-token") {
-		t.Error("sin token configurado ningún valor debe validar")
+		t.Error("with no token configured, no value must validate")
 	}
 }
 
@@ -87,7 +87,7 @@ func TestLogoutClearsCookie(t *testing.T) {
 
 	c := cookieSesion(t, rec)
 	if c.MaxAge >= 0 && c.Expires.After(time.Now()) {
-		t.Errorf("logout debe expirar la cookie, MaxAge=%d Expires=%v", c.MaxAge, c.Expires)
+		t.Errorf("logout must expire the cookie, MaxAge=%d Expires=%v", c.MaxAge, c.Expires)
 	}
 }
 
@@ -100,7 +100,7 @@ func TestSessionAcceptsValidCookie(t *testing.T) {
 	Session(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("con cookie válida debe pasar al siguiente handler, se obtuvo %d", rec.Code)
+		t.Errorf("with a valid cookie it must pass to the next handler, got %d", rec.Code)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestSessionAcceptsValidBearer(t *testing.T) {
 	Session(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("con Bearer válido debe pasar al siguiente handler, se obtuvo %d", rec.Code)
+		t.Errorf("with a valid Bearer it must pass to the next handler, got %d", rec.Code)
 	}
 }
 
@@ -125,10 +125,10 @@ func TestSessionRedirectsWithoutCredentials(t *testing.T) {
 	Session(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusFound {
-		t.Fatalf("sin sesión se esperaba 302, se obtuvo %d", rec.Code)
+		t.Fatalf("without a session: expected 302, got %d", rec.Code)
 	}
 	if loc := rec.Header().Get("Location"); loc != "/login" {
-		t.Errorf("se esperaba Location /login, se obtuvo %q", loc)
+		t.Errorf("expected Location /login, got %q", loc)
 	}
 }
 
@@ -141,7 +141,7 @@ func TestSessionRejectsWrongCookie(t *testing.T) {
 	Session(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusFound {
-		t.Errorf("con cookie inválida se esperaba 302, se obtuvo %d", rec.Code)
+		t.Errorf("with an invalid cookie: expected 302, got %d", rec.Code)
 	}
 }
 
@@ -150,7 +150,7 @@ func TestCSRFValidTokenPasses(t *testing.T) {
 
 	token, err := CSRFValue()
 	if err != nil {
-		t.Fatalf("CSRFValue falló: %v", err)
+		t.Fatalf("CSRFValue failed: %v", err)
 	}
 	form := url.Values{"csrf": {token}}
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
@@ -159,7 +159,7 @@ func TestCSRFValidTokenPasses(t *testing.T) {
 	CSRF(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("con token CSRF válido debe pasar, se obtuvo %d", rec.Code)
+		t.Errorf("with a valid CSRF token it must pass, got %d", rec.Code)
 	}
 }
 
@@ -172,7 +172,7 @@ func TestCSRFMissingTokenRejected(t *testing.T) {
 	CSRF(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
-		t.Errorf("POST sin token CSRF se esperaba 403, se obtuvo %d", rec.Code)
+		t.Errorf("POST without CSRF token: expected 403, got %d", rec.Code)
 	}
 }
 
@@ -186,7 +186,7 @@ func TestCSRFWrongTokenRejected(t *testing.T) {
 	CSRF(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
-		t.Errorf("POST con token CSRF inválido se esperaba 403, se obtuvo %d", rec.Code)
+		t.Errorf("POST with invalid CSRF token: expected 403, got %d", rec.Code)
 	}
 }
 
@@ -198,7 +198,7 @@ func TestCSRFAllowsSafeMethods(t *testing.T) {
 		rec := httptest.NewRecorder()
 		CSRF(okHandler).ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
-			t.Errorf("%s sin token CSRF debe pasar (método seguro), se obtuvo %d", method, rec.Code)
+			t.Errorf("%s without CSRF token must pass (safe method), got %d", method, rec.Code)
 		}
 	}
 }
@@ -213,7 +213,7 @@ func TestCSRFBearerExempt(t *testing.T) {
 	CSRF(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("POST autenticado por Bearer debe estar exento de CSRF, se obtuvo %d", rec.Code)
+		t.Errorf("POST authenticated by Bearer must be exempt from CSRF, got %d", rec.Code)
 	}
 }
 
@@ -221,23 +221,23 @@ func TestCSRFValueDeterministicAndSecretBound(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "secreto-uno")
 	first, err := CSRFValue()
 	if err != nil {
-		t.Fatalf("CSRFValue falló: %v", err)
+		t.Fatalf("CSRFValue failed: %v", err)
 	}
 	second, err := CSRFValue()
 	if err != nil {
-		t.Fatalf("CSRFValue falló: %v", err)
+		t.Fatalf("CSRFValue failed: %v", err)
 	}
 	if first != second {
-		t.Error("el token CSRF debe ser determinístico para el mismo secreto")
+		t.Error("the CSRF token must be deterministic for the same secret")
 	}
 
 	t.Setenv("CADDY_UI_TOKEN", "secreto-dos")
 	other, err := CSRFValue()
 	if err != nil {
-		t.Fatalf("CSRFValue falló: %v", err)
+		t.Fatalf("CSRFValue failed: %v", err)
 	}
 	if other == first {
-		t.Error("el token CSRF debe cambiar cuando cambia el secreto")
+		t.Error("the CSRF token must change when the secret changes")
 	}
 }
 
@@ -245,6 +245,6 @@ func TestCSRFValueRequiresToken(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "")
 
 	if _, err := CSRFValue(); err == nil {
-		t.Error("sin token configurado, CSRFValue debe devolver error")
+		t.Error("with no token configured, CSRFValue must return an error")
 	}
 }

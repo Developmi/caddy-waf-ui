@@ -22,7 +22,7 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* Skip link (WCAG 2.4.1): oculto visualmente hasta que recibe foco */
+/* Skip link (WCAG 2.4.1): visually hidden until it receives focus */
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -267,8 +267,8 @@ header.header-container {
   background: rgba(245, 158, 11, 0.25);
 }
 
-/* Enlaces de navegación con apariencia de botón. Sin role="button": son
-   enlaces, no acciones (a11y) */
+/* Navigation links styled as buttons. No role="button": they are links,
+   not actions (a11y) */
 .btn-link {
   display: inline-flex;
   align-items: center;
@@ -467,7 +467,7 @@ header.header-container {
   align-items: center;
 }
 
-/* Variante de error (flash tipado, fix J3-1): role=alert + aria-live=assertive */
+/* Error variant (typed flash, fix J3-1): role=alert + aria-live=assertive */
 .toast-notice--error {
   background: #3f1d1d;
   border-color: #f43f5e;
@@ -487,8 +487,8 @@ header.header-container {
   color: inherit;
 }
 
-/* Restaura el ring de foco de Pico (box-shadow) que box-shadow:none anulaba
-   como único indicador de foco (fix J3-3) */
+/* Restores Pico's focus ring (box-shadow) that box-shadow:none was
+   removing as the only focus indicator (fix J3-3) */
 .toast-dismiss:focus-visible {
   box-shadow: 0 0 0 var(--pico-outline-width, 0.125rem) var(--pico-primary-focus);
   border-radius: 0.25rem;
@@ -784,8 +784,8 @@ form textarea {
 .u-inline-block { display: inline-block; }
 .u-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .u-text-right { text-align: right; }
-/* Escala de tamaño real (fix J3-14): solo clases usadas, nada < 0.875rem.
-   u-text-xs/lg/base/xl se eliminaron (dead code, sin uso en templates). */
+/* Real size scale (fix J3-14): only used classes, nothing < 0.875rem.
+   u-text-xs/lg/base/xl were removed (dead code, unused in templates). */
 .u-text-sm { font-size: 0.875rem; }
 .u-text-md { font-size: 0.95rem; }
 .u-text-white { color: #ffffff; }

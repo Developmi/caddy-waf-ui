@@ -8,10 +8,10 @@
     });
   });
 
-  // Confirmación al pasar el WAF a modo Off (bypass de protección): el
-  // mensaje viaja server-side en data-confirm-off. En sites.html el form
-  // usa radios; en overview.html botones submit name=mode. El confirm solo
-  // se dispara cuando el modo elegido es Off.
+  // Confirmation when switching the WAF to Off mode (protection bypass):
+  // the message travels server-side in data-confirm-off. In sites.html the
+  // form uses radios; in overview.html submit buttons name=mode. The confirm
+  // only fires when the chosen mode is Off.
   document.querySelectorAll("form[data-confirm-off]").forEach(function (form) {
     form.addEventListener("submit", function (event) {
       var mode;

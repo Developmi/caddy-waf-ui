@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// TestBearerMiddlewareAcceptsValidToken: con un Bearer válido el middleware
-// pasa el control al siguiente handler.
+// TestBearerMiddlewareAcceptsValidToken: with a valid Bearer the middleware
+// passes control to the next handler.
 func TestBearerMiddlewareAcceptsValidToken(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -17,12 +17,12 @@ func TestBearerMiddlewareAcceptsValidToken(t *testing.T) {
 	Middleware(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("con Bearer válido debe pasar al siguiente handler, se obtuvo %d", rec.Code)
+		t.Errorf("with a valid Bearer it must pass to the next handler, got %d", rec.Code)
 	}
 }
 
-// TestBearerMiddlewareRejectsMissingHeader: sin header Authorization → 401
-// sin cuerpo (no information leakage).
+// TestBearerMiddlewareRejectsMissingHeader: missing Authorization header →
+// 401 with no body (no information leakage).
 func TestBearerMiddlewareRejectsMissingHeader(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -30,15 +30,15 @@ func TestBearerMiddlewareRejectsMissingHeader(t *testing.T) {
 	Middleware(okHandler).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("sin header Authorization se esperaba 401, se obtuvo %d", rec.Code)
+		t.Errorf("missing Authorization header: expected 401, got %d", rec.Code)
 	}
 	if rec.Body.Len() != 0 {
-		t.Errorf("el 401 no debe llevar cuerpo: %q", rec.Body.String())
+		t.Errorf("the 401 must not carry a body: %q", rec.Body.String())
 	}
 }
 
-// TestBearerMiddlewareRejectsWrongScheme: un esquema que no es Bearer (p.ej.
-// Basic) se rechaza con 401.
+// TestBearerMiddlewareRejectsWrongScheme: a non-Bearer scheme (e.g. Basic)
+// is rejected with 401.
 func TestBearerMiddlewareRejectsWrongScheme(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -48,12 +48,12 @@ func TestBearerMiddlewareRejectsWrongScheme(t *testing.T) {
 	Middleware(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("esquema no-Bearer se esperaba 401, se obtuvo %d", rec.Code)
+		t.Errorf("non-Bearer scheme: expected 401, got %d", rec.Code)
 	}
 }
 
-// TestBearerMiddlewareRejectsWrongToken: un token incorrecto se rechaza con
-// 401 (comparación en tiempo constante vía tokenMatches).
+// TestBearerMiddlewareRejectsWrongToken: an incorrect token is rejected with
+// 401 (constant-time comparison via tokenMatches).
 func TestBearerMiddlewareRejectsWrongToken(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -63,12 +63,12 @@ func TestBearerMiddlewareRejectsWrongToken(t *testing.T) {
 	Middleware(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("token incorrecto se esperaba 401, se obtuvo %d", rec.Code)
+		t.Errorf("wrong token: expected 401, got %d", rec.Code)
 	}
 }
 
-// TestBearerMiddlewareRejectsWhenTokenUnset: sin token configurado ningún
-// valor debe validar (misma semántica que tokenMatches).
+// TestBearerMiddlewareRejectsWhenTokenUnset: with no token configured, no
+// value must validate (same semantics as tokenMatches).
 func TestBearerMiddlewareRejectsWhenTokenUnset(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "")
 
@@ -78,6 +78,6 @@ func TestBearerMiddlewareRejectsWhenTokenUnset(t *testing.T) {
 	Middleware(okHandler).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("sin token configurado se esperaba 401, se obtuvo %d", rec.Code)
+		t.Errorf("unconfigured token: expected 401, got %d", rec.Code)
 	}
 }

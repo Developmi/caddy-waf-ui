@@ -6,6 +6,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.1.0] - 2026-09-07
+
+### Security
+
+* **CVE-2026-14456 (OpenSSL DoS)**: Pinned `openssl=3.5.8-r0` in the runtime image (transient pin; tracked in the Dockerfile comment for removal once alpine 3.23.6/3.24.2 publish the fixed version). Trivy gate now reports 0 HIGH/CRITICAL findings for the image.
+* **Login rate limiting**: Token-bucket limiter (zero-dependency, stdlib only) on `POST /login` — 5 attempts/min per client plus a 60/min global ceiling, `429 + Retry-After` without `Set-Cookie`. Failed logins now emit a structured `slog` security event (`login rejected`, `remote_ip`) without logging credentials.
+* **API rate limiting**: `/api/*` limited to 120 req/min with burst 30, applied outside authentication so unauthenticated probes also burn budget. `/health`, `/static/` and SSR page GETs stay exempt.
+* **Session cookie expiry**: `Max-Age=43200` (12h) on the session cookie, bounding the exposure window after a manual token rotation (stateless design kept; logout unchanged).
+* **Server hardening**: `WriteTimeout: 30s`, `IdleTimeout: 60s`, `MaxHeaderBytes: 1 MiB` alongside the existing `ReadHeaderTimeout` (via extracted `newServer`). Conditional HSTS (`max-age=31536000`) emitted only when `X-Forwarded-Proto: https` is present, so it activates automatically behind a TLS-terminating proxy without breaking loopback/Tailscale HTTP access.
+* **CI supply-chain gates**: `govulncheck` pinned to `v1.7.0` in `tools/versions.mk` and run as `make vuln` on PRs and main (no more floating `@latest`; integrity via Go checksum DB). Trivy SARIF now uploads on main and even when the gate fails (`if: always()`), so findings reach the Security tab while the fail-on-HIGH/CRITICAL gate stays enforced.
+* **Docs**: `README.md`, `.env.example` and `SECURITY.md` document the LAN exposure risk of the default `CADDY_UI_BIND=0.0.0.0:8080` and the loopback/Tailscale mitigations. The default binding is intentionally unchanged.
+
+### Changed
+
+* **Full ES→EN normalization**: All source comments, log/error messages, user-visible API messages and test case names translated from Spanish to English. Removed the `misspell` Spanish-word exclusion from `.golangci.yml`; `make lint-go` reports 0 issues. No behavior, identifier, route, or env-var changes.
+
+---
+
 ## [1.0.0] - 2026-08-21
 
 ### Added

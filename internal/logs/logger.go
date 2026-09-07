@@ -7,9 +7,9 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/config"
 )
 
-// parseLevel mapea el valor de CADDY_UI_LOG_LEVEL a un nivel de slog.
-// Los valores válidos son debug, info, warn y error; cualquier valor
-// desconocido o vacío cae a info (fail-safe, decisión D1).
+// parseLevel maps the CADDY_UI_LOG_LEVEL value to a slog level.
+// Valid values are debug, info, warn and error; any unknown or empty
+// value falls back to info (fail-safe, decision D1).
 func parseLevel(s string) slog.Level {
 	switch s {
 	case "debug":
@@ -23,29 +23,29 @@ func parseLevel(s string) slog.Level {
 	}
 }
 
-// Setup inicializa el logger global en formato JSON estructurado.
-// Esto asegura el cumplimiento del control NIST AU-12.
-// El nivel se lee de CADDY_UI_LOG_LEVEL y se guarda en un slog.LevelVar
-// para permitir ajuste en runtime en el futuro.
+// Setup initializes the global logger in structured JSON format.
+// This ensures compliance with the NIST AU-12 control.
+// The level is read from CADDY_UI_LOG_LEVEL and stored in a slog.LevelVar
+// to allow runtime adjustment in the future.
 func Setup() {
-	// Configuramos slog para que escupa JSON puro a stdout
+	// Configure slog to emit plain JSON to stdout
 	var level slog.LevelVar
 	level.Set(parseLevel(config.LogLevel()))
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: &level,
-		// Opcional: podemos renombrar los campos por defecto si es estrictamente necesario,
-		// pero los defaults de slog (time, level, msg) son un estándar excelente.
+		// Optional: we could rename the default fields if strictly necessary,
+		// but the slog defaults (time, level, msg) are an excellent standard.
 	})
 
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 }
 
-// LogAction registra un evento de configuración de forma estructurada.
-// Mapea exactamente a los campos definidos en la arquitectura[cite: 1].
-// Los campos opcionales vacíos (from/to/reloadStatus) se normalizan a
-// "unknown" para que los call sites no diverjan entre "" y "unknown"
-// (drift señalado por el judge J1).
+// LogAction records a configuration event in a structured way.
+// It maps exactly to the fields defined in the architecture[cite: 1].
+// Empty optional fields (from/to/reloadStatus) are normalized to "unknown"
+// so call sites do not diverge between "" and "unknown" (drift flagged by
+// judge J1).
 func LogAction(event string, domain string, from string, to string, remoteIP string, reloadStatus string) {
 	slog.Info(event,
 		slog.String("event", event),
@@ -57,7 +57,7 @@ func LogAction(event string, domain string, from string, to string, remoteIP str
 	)
 }
 
-// orUnknown normaliza un campo opcional vacío al valor canónico "unknown".
+// orUnknown normalizes an empty optional field to the canonical "unknown".
 func orUnknown(s string) string {
 	if s == "" {
 		return "unknown"
@@ -65,7 +65,7 @@ func orUnknown(s string) string {
 	return s
 }
 
-// LogRequest puede usarse en el middleware para trazar quién intenta acceder a la UI
+// LogRequest can be used in middleware to trace who attempts to access the UI
 func LogRequest(method string, path string, remoteIP string, status int) {
 	slog.Info("ui_request",
 		slog.String("method", method),

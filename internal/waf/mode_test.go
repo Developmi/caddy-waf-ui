@@ -8,13 +8,13 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/waf"
 )
 
-// auditDirectives son las directivas de auditoría que el overlay inline debe
-// conservar (S2): se verifican presentes y en orden dentro del bloque.
-// defaultAuditPath es el valor por defecto de CADDY_UI_AUDIT_LOG - los tests
-// pasan la ruta explícitamente (firma pura GenerateSnippet(site, auditPath,
-// includeDir), invariante M4: el overlay y el lector sharen la misma ruta).
-// defaultIncludeDir es el valor por defecto de CADDY_UI_INCLUDE_DIR (la vista
-// de Caddy del directorio de overlays, hallazgo J5-1).
+// auditDirectives are the audit directives that the inline overlay must keep
+// (S2): they are verified present and in order inside the block.
+// defaultAuditPath is the default value of CADDY_UI_AUDIT_LOG - the tests
+// pass the path explicitly (pure signature GenerateSnippet(site, auditPath,
+// includeDir), invariant M4: the overlay and the reader share the same path).
+// defaultIncludeDir is the default value of CADDY_UI_INCLUDE_DIR (the Caddy
+// view of the overlays directory, finding J5-1).
 const (
 	defaultAuditPath  = "/data/logs/coraza-audit.log"
 	defaultIncludeDir = "/etc/caddy/ui-managed"
@@ -27,15 +27,15 @@ var auditDirectives = []string{
 	"SecAuditLogParts ABCDEFGHIJKZ",
 }
 
-// assertInlineOverlay verifica el contrato R1 del overlay inline (S1, S2):
-// bloque coraza_waf top-level sin wrapper de snippet, header de 3 segmentos
-// conservado (contrato del scanner), Include de exclusiones dentro del bloque
-// y directivas de auditoría conservadas y en orden.
+// assertInlineOverlay verifies the R1 contract of the inline overlay (S1,
+// S2): top-level coraza_waf block without a snippet wrapper, 3-segment header
+// preserved (scanner contract), exclusions Include inside the block and audit
+// directives preserved and in order.
 func assertInlineOverlay(t *testing.T, result, headerPrefix, slug, mode string) {
 	t.Helper()
 
-	// S1: el bloque coraza_waf debe estar a nivel raíz (columna 0), sin anidarse
-	// en un snippet con nombre.
+	// S1: the coraza_waf block must be at root level (column 0), not nested
+	// in a named snippet.
 	topLevel := false
 	for _, line := range strings.Split(result, "\n") {
 		if line == "coraza_waf {" {
@@ -44,16 +44,16 @@ func assertInlineOverlay(t *testing.T, result, headerPrefix, slug, mode string) 
 		}
 	}
 	if !topLevel {
-		t.Errorf("el overlay no contiene un bloque coraza_waf top-level (línea exacta \"coraza_waf {\"):\n%s", result)
+		t.Errorf("the overlay does not contain a top-level coraza_waf block (exact line \"coraza_waf {\"):\n%s", result)
 	}
 
-	// S1: prohibido el wrapper de snippet (waf_{slug}) {.
+	// S1: the snippet wrapper (waf_{slug}) { is forbidden.
 	if strings.Contains(result, "(waf_"+slug+") {") {
-		t.Errorf("el overlay no debe declarar el snippet (waf_%s) {:\n%s", slug, result)
+		t.Errorf("the overlay must not declare the snippet (waf_%s) {:\n%s", slug, result)
 	}
 
-	// Orden estructural completo: header → coraza_waf → SecRuleEngine → Include
-	// de exclusiones → directivas de auditoría → cierre del bloque.
+	// Full structural order: header → coraza_waf → SecRuleEngine → exclusions
+	// Include → audit directives → block close.
 	order := []string{
 		headerPrefix,
 		"coraza_waf {",
@@ -63,23 +63,23 @@ func assertInlineOverlay(t *testing.T, result, headerPrefix, slug, mode string) 
 	order = append(order, auditDirectives...)
 
 	prev := -1
-	prevFragment := "<inicio>"
+	prevFragment := "<start>"
 	for _, fragment := range order {
 		idx := strings.Index(result, fragment)
 		if idx < 0 {
-			t.Errorf("el overlay inline no contiene el fragmento esperado: %q\nOverlay:\n%s", fragment, result)
+			t.Errorf("the inline overlay does not contain the expected fragment: %q\nOverlay:\n%s", fragment, result)
 			continue
 		}
 		if idx < prev {
-			t.Errorf("fragmento %q fuera de orden (aparece antes que %q)", fragment, prevFragment)
+			t.Errorf("fragment %q out of order (appears before %q)", fragment, prevFragment)
 		}
 		prev = idx
 		prevFragment = fragment
 	}
 
-	// S2: el bloque se cierra después de las directivas de auditoría.
+	// S2: the block closes after the audit directives.
 	if closeIdx := strings.LastIndex(result, "}"); closeIdx < prev {
-		t.Errorf("el bloque coraza_waf debe cerrarse después de las directivas de auditoría:\n%s", result)
+		t.Errorf("the coraza_waf block must close after the audit directives:\n%s", result)
 	}
 }
 
@@ -91,20 +91,21 @@ func TestGenerateSnippetInline(t *testing.T) {
 
 	resultBytes, err := waf.GenerateSnippet(site, defaultAuditPath, defaultIncludeDir)
 	if err != nil {
-		t.Fatalf("GenerateSnippet falló inesperadamente: %v", err)
+		t.Fatalf("GenerateSnippet failed unexpectedly: %v", err)
 	}
 
 	result := string(resultBytes)
 
-	// S1 + S2: header de 3 segmentos conservado (contrato del scanner).
+	// S1 + S2: 3-segment header preserved (scanner contract).
 	assertInlineOverlay(t, result,
 		"# domain: api.developmi.com | mode: DetectionOnly | updated: ",
 		"api_developmi_com", "DetectionOnly")
 }
 
-// TestGenerateSnippetHonorsAuditPath verifica la invariante M4: la ruta del
-// SecAuditLog en el overlay es la que el caller pasa (logs.AuditLogPath(), que
-// honra CADDY_UI_AUDIT_LOG), no un valor hardcodeado.
+// TestGenerateSnippetHonorsAuditPath verifies the M4 invariant: the
+// SecAuditLog path in the overlay is the one the caller passes
+// (logs.AuditLogPath(), which honors CADDY_UI_AUDIT_LOG), not a hardcoded
+// value.
 func TestGenerateSnippetHonorsAuditPath(t *testing.T) {
 	site := &domain.Site{
 		Domain: "api.developmi.com",
@@ -114,23 +115,23 @@ func TestGenerateSnippetHonorsAuditPath(t *testing.T) {
 	customPath := "/var/log/waf/custom-audit.log"
 	resultBytes, err := waf.GenerateSnippet(site, customPath, defaultIncludeDir)
 	if err != nil {
-		t.Fatalf("GenerateSnippet falló inesperadamente: %v", err)
+		t.Fatalf("GenerateSnippet failed unexpectedly: %v", err)
 	}
 
 	result := string(resultBytes)
 	if !strings.Contains(result, "SecAuditLog "+customPath) {
-		t.Errorf("el overlay debe contener SecAuditLog %q (invariante M4, CADDY_UI_AUDIT_LOG):\n%s", customPath, result)
+		t.Errorf("the overlay must contain SecAuditLog %q (invariant M4, CADDY_UI_AUDIT_LOG):\n%s", customPath, result)
 	}
 	if strings.Contains(result, "SecAuditLog /data/logs/coraza-audit.log") {
-		t.Errorf("el overlay no debe contener la ruta hardcodeada cuando el caller pasa otra:\n%s", result)
+		t.Errorf("the overlay must not contain the hardcoded path when the caller passes another one:\n%s", result)
 	}
 }
 
-// TestGenerateSnippetHonorsIncludeDir verifica el hallazgo J5-1: la directiva
-// Include de exclusiones del overlay debe referenciar el directorio de
-// inclusión que el caller pasa (config.IncludeDir(), CADDY_UI_INCLUDE_DIR) -
-// la vista de CADDY del volumen, NO un valor hardcodeado. Un despliegue con
-// dirs personalizados deja de romperse silenciosamente.
+// TestGenerateSnippetHonorsIncludeDir verifies finding J5-1: the exclusions
+// Include directive of the overlay must reference the include directory that
+// the caller passes (config.IncludeDir(), CADDY_UI_INCLUDE_DIR) - the CADDY
+// view of the volume, NOT a hardcoded value. A deployment with custom dirs
+// stops breaking silently.
 func TestGenerateSnippetHonorsIncludeDir(t *testing.T) {
 	site := &domain.Site{
 		Domain: "api.developmi.com",
@@ -140,15 +141,15 @@ func TestGenerateSnippetHonorsIncludeDir(t *testing.T) {
 	customInclude := "/etc/caddy/custom-managed"
 	resultBytes, err := waf.GenerateSnippet(site, defaultAuditPath, customInclude)
 	if err != nil {
-		t.Fatalf("GenerateSnippet falló inesperadamente: %v", err)
+		t.Fatalf("GenerateSnippet failed unexpectedly: %v", err)
 	}
 
 	result := string(resultBytes)
 	if !strings.Contains(result, "Include "+customInclude+"/exclusions-api_developmi_com.conf") {
-		t.Errorf("el overlay debe incluir las exclusiones desde CADDY_UI_INCLUDE_DIR (%s):\n%s", customInclude, result)
+		t.Errorf("the overlay must include the exclusions from CADDY_UI_INCLUDE_DIR (%s):\n%s", customInclude, result)
 	}
 	if strings.Contains(result, "Include /etc/caddy/ui-managed/exclusions-api_developmi_com.conf") {
-		t.Errorf("el overlay no debe contener la ruta hardcodeada cuando el caller pasa otra:\n%s", result)
+		t.Errorf("the overlay must not contain the hardcoded path when the caller passes another one:\n%s", result)
 	}
 }
 
@@ -160,13 +161,13 @@ func TestGenerateSnippetInlineOnMode(t *testing.T) {
 
 	resultBytes, err := waf.GenerateSnippet(site, defaultAuditPath, defaultIncludeDir)
 	if err != nil {
-		t.Fatalf("GenerateSnippet falló inesperadamente: %v", err)
+		t.Fatalf("GenerateSnippet failed unexpectedly: %v", err)
 	}
 
 	result := string(resultBytes)
 
-	// Triangulación: otro dominio y modo On - el template debe renderizar los
-	// valores reales del sitio, no una salida fija.
+	// Triangulation: another domain and On mode - the template must render
+	// the real values of the site, not a fixed output.
 	assertInlineOverlay(t, result,
 		"# domain: app.example.org | mode: On | updated: ",
 		"app_example_org", "On")

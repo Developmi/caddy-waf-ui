@@ -2,19 +2,18 @@ package domain
 
 import "strings"
 
-// DomainSlug normaliza un nombre de dominio a un formato seguro para el
-// sistema de archivos[cite: 1].
-// Ej: api.example.com  →  api_example_com
-// Ej: *.example.com    →  wildcard_example_com
+// DomainSlug normalizes a domain name to a filesystem-safe format[cite: 1].
+// E.g.: api.example.com  →  api_example_com
+// E.g.: *.example.com    →  wildcard_example_com
 //
-// Además de los mapeos legados (. → _, * → wildcard, - → _), TODO carácter
-// fuera de [a-zA-Z0-9] (slashes, whitespace, control chars, %0A literal,
-// "..", etc.) se reemplaza por "_": el slug jamás contiene separadores de
-// ruta ni directivas inyectables. Es la capa de defensa en profundidad que
-// acompaña a service.ValidateDomain (validación estricta aguas arriba).
+// Besides the legacy mappings (. → _, * → wildcard, - → _), EVERY character
+// outside [a-zA-Z0-9] (slashes, whitespace, control chars, %0A literal,
+// "..", etc.) is replaced with "_": the slug never contains path separators
+// or injectable directives. It is the defense-in-depth layer that accompanies
+// service.ValidateDomain (strict validation upstream).
 //
-// Vive en el paquete domain (frontera pure-domain, hallazgo J5-5): los
-// paquetes que construyen rutas (files, waf, iprules, ui) lo consumen vía
+// It lives in the domain package (pure-domain boundary, finding J5-5): the
+// packages that build paths (files, waf, iprules, ui) consume it via
 // domain.DomainSlug.
 func DomainSlug(domain string) string {
 	legacy := strings.NewReplacer(".", "_", "*", "wildcard", "-", "_")

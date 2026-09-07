@@ -7,57 +7,57 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/domain"
 )
 
-// TestDomainSlug verifica la normalización canónica del slug (los tests se
-// movieron con la función desde internal/files/naming_test.go, hallazgo J5-5).
+// TestDomainSlug verifies the canonical slug normalization (the tests moved
+// with the function from internal/files/naming_test.go, finding J5-5).
 func TestDomainSlug(t *testing.T) {
 	tests := []struct {
 		name     string
 		domain   string
 		expected string
 	}{
-		{"Dominio normal", "api.example.com", "api_example_com"},
-		{"Dominio con comodín", "*.example.com", "wildcard_example_com"},
-		{"Dominio con guiones", "mi-sitio.com", "mi_sitio_com"},
-		{"Dominio en mayúsculas", "API.EXAMPLE.COM", "api_example_com"},
+		{"Normal domain", "api.example.com", "api_example_com"},
+		{"Wildcard domain", "*.example.com", "wildcard_example_com"},
+		{"Domain with hyphens", "mi-sitio.com", "mi_sitio_com"},
+		{"Uppercase domain", "API.EXAMPLE.COM", "api_example_com"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := domain.DomainSlug(tt.domain)
 			if result != tt.expected {
-				t.Errorf("DomainSlug(%q) = %q; se esperaba %q", tt.domain, result, tt.expected)
+				t.Errorf("DomainSlug(%q) = %q; expected %q", tt.domain, result, tt.expected)
 			}
 		})
 	}
 }
 
-// TestDomainSlugSanitizesHostileInput: el slug debe neutralizar TODO carácter
-// fuera de [a-zA-Z0-9] (hallazgo J2): slashes, whitespace, control chars,
-// "%0A" literal y ".." jamás sobreviven, aunque ValidateDomain ya los filtre
-// aguas arriba (defensa en profundidad). El slug resultante solo puede
-// contener [a-z0-9_] y nunca formar path traversal.
+// TestDomainSlugSanitizesHostileInput: the slug must neutralize EVERY
+// character outside [a-zA-Z0-9] (finding J2): slashes, whitespace, control
+// chars, "%0A" literal and ".." never survive, even though ValidateDomain
+// already filters them upstream (defense in depth). The resulting slug can
+// only contain [a-z0-9_] and can never form a path traversal.
 func TestDomainSlugSanitizesHostileInput(t *testing.T) {
 	tests := []struct {
 		name   string
 		domain string
 	}{
-		{"Path traversal absoluto", "/etc/passwd"},
-		{"Path traversal relativo", "x/../../tmp/evil"},
-		{"Doble punto", ".."},
-		{"Subida de directorio", "../.."},
+		{"Absolute path traversal", "/etc/passwd"},
+		{"Relative path traversal", "x/../../tmp/evil"},
+		{"Double dot", ".."},
+		{"Parent directory traversal", "../.."},
 		{"Whitespace", "a b"},
 		{"Slash", "a/b"},
-		{"Punto y barra", "./"},
+		{"Dot slash", "./"},
 		{"Control char NUL", "a\x00b"},
 		{"Control char tab", "a\tb"},
 		{"Newline literal percent-encoded", "foo%0Aabort"},
-		{"Comillas", `a"b`},
-		{"Llaves", "a{b}c"},
-		{"Signo peso", "a$b"},
-		{"Arroba", "a@b"},
-		{"Dos puntos", "a:b"},
+		{"Quotes", `a"b`},
+		{"Braces", "a{b}c"},
+		{"Dollar sign", "a$b"},
+		{"At sign", "a@b"},
+		{"Colon", "a:b"},
 		{"Backslash", `a\b`},
-		{"Caracteres no ASCII", "café.com"},
+		{"Non-ASCII characters", "café.com"},
 		{"Underscore", "a_b.com"},
 	}
 
@@ -66,15 +66,15 @@ func TestDomainSlugSanitizesHostileInput(t *testing.T) {
 			slug := domain.DomainSlug(tt.domain)
 
 			if strings.ContainsAny(slug, `/\`) {
-				t.Errorf("DomainSlug(%q) = %q: no debe contener separadores de ruta", tt.domain, slug)
+				t.Errorf("DomainSlug(%q) = %q: must not contain path separators", tt.domain, slug)
 			}
 			if strings.Contains(slug, "..") {
-				t.Errorf("DomainSlug(%q) = %q: no debe contener doble punto consecutivo", tt.domain, slug)
+				t.Errorf("DomainSlug(%q) = %q: must not contain consecutive double dots", tt.domain, slug)
 			}
 			for _, r := range slug {
 				valid := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_'
 				if !valid {
-					t.Errorf("DomainSlug(%q) = %q: carácter no seguro %q", tt.domain, slug, r)
+					t.Errorf("DomainSlug(%q) = %q: unsafe character %q", tt.domain, slug, r)
 				}
 			}
 		})

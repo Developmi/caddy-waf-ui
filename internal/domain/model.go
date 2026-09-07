@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// WAFMode define los estados permitidos para el motor de Coraza en un sitio específico.
+// WAFMode defines the allowed states for the Coraza engine on a specific site.
 type WAFMode string
 
 const (
@@ -11,18 +11,18 @@ const (
 	ModeOff           WAFMode = "Off"
 )
 
-// Site define la entidad principal que gestiona la UI en memoria.
+// Site defines the main entity that the UI manages in memory.
 type Site struct {
 	Domain  string    `json:"domain"`
 	Mode    WAFMode   `json:"mode"`
 	Updated time.Time `json:"updated"`
 
-	// Degraded indica que la cabecera del overlay traía un modo desconocido:
-	// la UI muestra DetectionOnly (default no-bloqueante, forward-compat) pero
-	// ese NO es el estado real cargado en Caddy. El badge "degraded" advierte
-	// la desincronización en lugar de ocultarla (W1 verify).
+	// Degraded indicates that the overlay header carried an unknown mode:
+	// the UI shows DetectionOnly (non-blocking default, forward-compat) but
+	// that is NOT the real state loaded in Caddy. The "degraded" badge
+	// surfaces the desynchronization instead of hiding it (W1 verify).
 	Degraded bool `json:"degraded"`
 
-	// Nota: Las exclusiones y las reglas de IP se agregarán aquí como structs
-	// a medida que implementemos esos módulos, para mantenerlo iterativo.
+	// Note: Exclusions and IP rules will be added here as structs as we
+	// implement those modules, to keep it iterative.
 }

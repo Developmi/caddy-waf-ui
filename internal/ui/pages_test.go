@@ -13,29 +13,29 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/logs"
 )
 
-// TestLogPageURLPreservesFilters verifica que los enlaces del pager conserven
-// los filtros activos del explorador (tab/search/actionFilter) y no emitan
-// enlaces fuera de rango.
+// TestLogPageURLPreservesFilters verifies that the pager links preserve the
+// active explorer filters (tab/search/actionFilter) and do not emit
+// out-of-range links.
 func TestLogPageURLPreservesFilters(t *testing.T) {
 	q := url.Values{"search": {"1.2.3.4"}, "actionFilter": {"BLOCKED"}}
 
 	got := logPageURL(q, 2)
-	// url.Values.Encode ordena alfabéticamente: actionFilter, page, search, tab.
+	// url.Values.Encode sorts alphabetically: actionFilter, page, search, tab.
 	want := "/?actionFilter=BLOCKED&page=2&search=1.2.3.4&tab=logs"
 	if got != want {
-		t.Errorf("se esperaba %q, se obtuvo %q", want, got)
+		t.Errorf("expected %q, got %q", want, got)
 	}
 
 	if got := logPageURL(q, 0); got != "" {
-		t.Errorf("page=0 no debe producir enlace (fuera de rango), se obtuvo %q", got)
+		t.Errorf("page=0 must not produce a link (out of range), got %q", got)
 	}
 	if got := logPageURL(url.Values{}, 1); got != "/?page=1&tab=logs" {
-		t.Errorf("sin filtros solo debe llevar tab y page, se obtuvo %q", got)
+		t.Errorf("without filters it must only carry tab and page, got %q", got)
 	}
 }
 
-// TestLogsPageRendersPager verifica que el pager se renderice con la página
-// actual y los enlaces prev/next, y que las entradas de la tabla se muestren.
+// TestLogsPageRendersPager verifies that the pager renders with the current
+// page and the prev/next links, and that the table entries are shown.
 func TestLogsPageRendersPager(t *testing.T) {
 	data := pageData{
 		ActiveTab:    "logs",
@@ -50,26 +50,26 @@ func TestLogsPageRendersPager(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "logs", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	if !strings.Contains(body, "Page 2 of 3") {
-		t.Errorf("el pager debe mostrar la página actual y el total: %s", body)
+		t.Errorf("the pager must show the current page and the total: %s", body)
 	}
-	// html/template escapa & como &amp; en contexto de atributo.
+	// html/template escapes & as &amp; in attribute context.
 	if !strings.Contains(body, `href="/?tab=logs&amp;page=1"`) || !strings.Contains(body, `href="/?tab=logs&amp;page=3"`) {
-		t.Errorf("el pager debe enlazar prev y next: %s", body)
+		t.Errorf("the pager must link prev and next: %s", body)
 	}
 	if !strings.Contains(body, "942100") || !strings.Contains(body, "1.2.3.4") {
-		t.Errorf("la tabla debe renderizar las entradas de la página: %s", body)
+		t.Errorf("the table must render the entries of the page: %s", body)
 	}
 }
 
-// TestLogsPageWithoutPagerRendersNoPager verifica que con una sola página el
-// pager no se renderice (rama negativa del template).
+// TestLogsPageWithoutPagerRendersNoPager verifies that with a single page the
+// pager is not rendered (negative branch of the template).
 func TestLogsPageWithoutPagerRendersNoPager(t *testing.T) {
 	data := pageData{
 		ActiveTab: "logs",
@@ -80,19 +80,19 @@ func TestLogsPageWithoutPagerRendersNoPager(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "logs", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	body := rec.Body.String()
 	if strings.Contains(body, "Page 1 of 1") {
-		t.Errorf("con una sola página el pager no debe renderizarse: %s", body)
+		t.Errorf("with a single page the pager must not be rendered: %s", body)
 	}
 	if !strings.Contains(body, "942100") {
-		t.Errorf("la tabla debe seguir renderizando la entrada: %s", body)
+		t.Errorf("the table must keep rendering the entry: %s", body)
 	}
 }
 
-// seedRollbackEnv prepara managedDir + backupDir con un overlay registrado y
-// snapshots opcionales para el tab rollback.
+// seedRollbackEnv prepares managedDir + backupDir with a registered overlay
+// and optional snapshots for the rollback tab.
 func seedRollbackEnv(t *testing.T, snapshots map[string]string) {
 	t.Helper()
 	managedDir := t.TempDir()
@@ -102,22 +102,22 @@ func seedRollbackEnv(t *testing.T, snapshots map[string]string) {
 
 	overlay := filepath.Join(managedDir, "waf-api_example_com.conf")
 	if err := os.WriteFile(overlay, []byte("# domain: api.example.com | mode: On | updated: 2026-08-07T00:00:00Z\n"), 0640); err != nil {
-		t.Fatalf("fallo sembrando overlay: %v", err)
+		t.Fatalf("failed seeding overlay: %v", err)
 	}
 	for name, content := range snapshots {
 		slugDir := filepath.Join(backupDir, "api_example_com")
 		if err := os.MkdirAll(slugDir, 0750); err != nil {
-			t.Fatalf("fallo creando dir de backups: %v", err)
+			t.Fatalf("failed creating backups dir: %v", err)
 		}
 		if err := os.WriteFile(filepath.Join(slugDir, name), []byte(content), 0640); err != nil {
-			t.Fatalf("fallo sembrando snapshot %s: %v", name, err)
+			t.Fatalf("failed seeding snapshot %s: %v", name, err)
 		}
 	}
 }
 
-// TestRollbackTabRendersSnapshots: el tab rollback debe cargar los snapshots
-// reales del dominio (files.ListBackups) y renderizar la fila de restauración
-// con el formulario PRG (action + snapId) (spec backup-recovery).
+// TestRollbackTabRendersSnapshots: the rollback tab must load the real
+// snapshots of the domain (files.ListBackups) and render the restore row with
+// the PRG form (action + snapId) (backup-recovery spec).
 func TestRollbackTabRendersSnapshots(t *testing.T) {
 	seedRollbackEnv(t, map[string]string{
 		"2020-01-01T00-00-00Z.waf.conf": "v1",
@@ -126,64 +126,64 @@ func TestRollbackTabRendersSnapshots(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/?tab=rollback&domain=api.example.com", nil)
 	data := buildPageData(req, "rollback", scanSites())
 	if len(data.Snapshots) != 1 {
-		t.Fatalf("se esperaba 1 snapshot cargado del listado real, se obtuvieron %d", len(data.Snapshots))
+		t.Fatalf("expected 1 snapshot loaded from the real listing, got %d", len(data.Snapshots))
 	}
 	if data.Snapshots[0].FileType != "waf" {
-		t.Errorf("el snapshot cargado debe conservar su tipo: %+v", data.Snapshots[0])
+		t.Errorf("the loaded snapshot must keep its type: %+v", data.Snapshots[0])
 	}
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "rollback", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	if !strings.Contains(body, "2020-01-01T00-00-00Z") {
-		t.Errorf("la línea de tiempo debe mostrar el timestamp del snapshot: %s", body)
+		t.Errorf("the timeline must show the timestamp of the snapshot: %s", body)
 	}
 	if !strings.Contains(body, `action="/sites/api.example.com/rollback"`) {
-		t.Errorf("cada snapshot debe tener su formulario de restauración PRG: %s", body)
+		t.Errorf("each snapshot must have its PRG restore form: %s", body)
 	}
 	if !strings.Contains(body, `name="snapId" value="2020-01-01T00-00-00Z.waf.conf"`) {
-		t.Errorf("el formulario debe enviar el nombre completo del snapshot: %s", body)
+		t.Errorf("the form must send the full snapshot name: %s", body)
 	}
 	if !strings.Contains(body, "Restore This Snapshot") {
-		t.Errorf("debe existir el botón de restauración: %s", body)
+		t.Errorf("the restore button must exist: %s", body)
 	}
 }
 
-// TestRollbackTabEmptyState: sin backups el tab rollback renderiza el estado
-// vacío honesto (spec backup-recovery: "empty state"), nunca 500.
+// TestRollbackTabEmptyState: without backups the rollback tab renders the
+// honest empty state (backup-recovery spec: "empty state"), never 500.
 func TestRollbackTabEmptyState(t *testing.T) {
 	seedRollbackEnv(t, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/?tab=rollback&domain=api.example.com", nil)
 	data := buildPageData(req, "rollback", scanSites())
 	if len(data.Snapshots) != 0 {
-		t.Fatalf("sin backups se esperaba lista vacía, se obtuvieron %d", len(data.Snapshots))
+		t.Fatalf("without backups an empty list was expected, got %d", len(data.Snapshots))
 	}
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "rollback", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
-		t.Fatalf("sin backups se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("without backups expected 200, got %d", rec.Code)
 	}
 	if !strings.Contains(body, "No configuration snapshots created yet for this domain.") {
-		t.Errorf("sin backups debe renderizar el estado vacío honesto: %s", body)
+		t.Errorf("without backups it must render the honest empty state: %s", body)
 	}
 	if strings.Contains(body, "Restore This Snapshot") {
-		t.Errorf("sin snapshots no debe haber botones de restauración: %s", body)
+		t.Errorf("without snapshots there must be no restore buttons: %s", body)
 	}
 }
 
-// TestOverviewRendersDegradedBadge: un sitio con Degraded=true (modo de
-// cabecera desconocido) debe mostrar el badge "degraded" en la fila de la
-// tabla del overview (W1) - la UI nunca debe presentar un modo inventado.
+// TestOverviewRendersDegradedBadge: a site with Degraded=true (unknown header
+// mode) must show the "degraded" badge in the overview table row (W1) - the
+// UI must never present an invented mode.
 func TestOverviewRendersDegradedBadge(t *testing.T) {
 	data := pageData{
 		ActiveTab: "overview",
@@ -197,21 +197,21 @@ func TestOverviewRendersDegradedBadge(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "overview", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	// El badge visible es el span con el texto "degraded" (la clase CSS
-	// .badge-degraded siempre está en el <style> - no es evidencia de render).
+	// The visible badge is the span with the text "degraded" (the CSS class
+	// .badge-degraded is always in the <style> - it is not render evidence).
 	if !strings.Contains(body, ">degraded<") {
-		t.Errorf("el sitio degradado debe mostrar el badge 'degraded': %s", body)
+		t.Errorf("the degraded site must show the 'degraded' badge: %s", body)
 	}
 }
 
-// TestOverviewHidesDegradedBadgeForHealthySites (triangulación): los sitios
-// con modo válido NO llevan badge degradado.
+// TestOverviewHidesDegradedBadgeForHealthySites (triangulation): the sites
+// with a valid mode do NOT carry a degraded badge.
 func TestOverviewHidesDegradedBadgeForHealthySites(t *testing.T) {
 	data := pageData{
 		ActiveTab: "overview",
@@ -221,15 +221,15 @@ func TestOverviewHidesDegradedBadgeForHealthySites(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "overview", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	if body := rec.Body.String(); strings.Contains(body, ">degraded<") {
-		t.Errorf("un sitio sano no debe mostrar el badge degradado: %s", body)
+		t.Errorf("a healthy site must not show the degraded badge: %s", body)
 	}
 }
 
-// TestSitesRendersDegradedBadge: la vista sites (dominio actual) también debe
-// exponer el badge cuando el sitio está degradado (W1).
+// TestSitesRendersDegradedBadge: the sites view (current domain) must also
+// expose the badge when the site is degraded (W1).
 func TestSitesRendersDegradedBadge(t *testing.T) {
 	data := pageData{
 		ActiveTab:   "sites",
@@ -239,19 +239,19 @@ func TestSitesRendersDegradedBadge(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	if err := executePage(rec, "sites", data); err != nil {
-		t.Fatalf("render falló: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	if !strings.Contains(body, ">degraded<") {
-		t.Errorf("la vista sites debe mostrar el badge 'degraded': %s", body)
+		t.Errorf("the sites view must show the 'degraded' badge: %s", body)
 	}
 }
 
-// findCookie localiza una cookie por nombre en la respuesta (helpers de los
-// tests de flash one-shot).
+// findCookie locates a cookie by name in the response (helpers of the
+// one-shot flash tests).
 func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 	for _, c := range cookies {
 		if c.Name == name {
@@ -261,73 +261,76 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 	return nil
 }
 
-// TestOverviewScanFailureRendersEmptyState: si el scan de overlays falla
-// (managed dir corrupto), la vista overview responde 200 con el estado vacío
-// honesto y el flash traducido - nunca 500 (W2, rama scanSites-error de pages).
-// El flash se consume one-shot: el ?flash= redirige a una URL limpia con la
-// cookie efímera, y el render consume y borra la cookie (refresh no re-muestra).
+// TestOverviewScanFailureRendersEmptyState: if the overlay scan fails
+// (corrupt managed dir), the overview view responds 200 with the honest
+// empty state and the translated flash - never 500 (W2, scanSites-error
+// branch of pages). The flash is consumed one-shot: the ?flash= redirects to
+// a clean URL with the ephemeral cookie, and the render consumes and deletes
+// the cookie (a refresh does not re-show it).
 func TestOverviewScanFailureRendersEmptyState(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "managed-es-un-archivo")
 	if err := os.WriteFile(file, []byte("x"), 0640); err != nil {
-		t.Fatalf("fallo sembrando archivo: %v", err)
+		t.Fatalf("failed seeding file: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", file)
 	t.Setenv("CADDY_UI_BACKUP_DIR", t.TempDir())
 
 	for flash, want := range map[string]string{
-		"success":           "Configuration updated successfully.",
-		"error":             "The configuration could not be applied.",
-		"logged_out":        "You have been signed out.",
-		"clave-desconocida": "clave-desconocida", // flashMessage default: la clave pasa tal cual
+		"success":     "Configuration updated successfully.",
+		"error":       "The configuration could not be applied.",
+		"logged_out":  "You have been signed out.",
+		"unknown-key": "unknown-key", // flashMessage default: the key passes through as-is
 	} {
-		// Primer GET con ?flash= (PRG): consume con redirect limpio + cookie.
+		// First GET with ?flash= (PRG): consumed with a clean redirect + cookie.
 		req := httptest.NewRequest(http.MethodGet, "/?flash="+flash, nil)
 		rec := httptest.NewRecorder()
 		HandleIndex(rec, req)
 
 		if rec.Code != http.StatusFound {
-			t.Fatalf("flash=%s: el consumo one-shot debe redirigir, se obtuvo %d", flash, rec.Code)
+			t.Fatalf("flash=%s: the one-shot consumption must redirect, got %d", flash, rec.Code)
 		}
 		if loc := rec.Header().Get("Location"); strings.Contains(loc, "flash=") {
-			t.Errorf("flash=%s: el redirect de consumo debe quitar ?flash=, se obtuvo %q", flash, loc)
+			t.Errorf("flash=%s: the consuming redirect must remove ?flash=, got %q", flash, loc)
 		}
 		cookie := findCookie(rec.Result().Cookies(), flashCookieName)
 		if cookie == nil {
-			t.Fatalf("flash=%s: el redirect debe fijar la cookie efímera del flash", flash)
+			t.Fatalf("flash=%s: the redirect must set the ephemeral flash cookie", flash)
 		}
 
-		// Segundo GET: render con toast tipado y cookie consumida (borrada).
+		// Second GET: render with a typed toast and the cookie consumed
+		// (deleted).
 		req2 := httptest.NewRequest(http.MethodGet, "/", nil)
 		req2.AddCookie(cookie)
 		rec2 := httptest.NewRecorder()
 		HandleIndex(rec2, req2)
 
 		if rec2.Code != http.StatusOK {
-			t.Fatalf("flash=%s: se esperaba 200 con estado vacío, se obtuvo %d", flash, rec2.Code)
+			t.Fatalf("flash=%s: expected 200 with the empty state, got %d", flash, rec2.Code)
 		}
 		body := rec2.Body.String()
 		if !strings.Contains(body, "No managed domains registered yet.") {
-			t.Errorf("flash=%s: el overview debe renderizar el estado vacío honesto", flash)
+			t.Errorf("flash=%s: the overview must render the honest empty state", flash)
 		}
 		if !strings.Contains(body, want) {
-			t.Errorf("flash=%s: el toast debe mostrar %q, se obtuvo: %s", flash, want, body)
+			t.Errorf("flash=%s: the toast must show %q, got: %s", flash, want, body)
 		}
 		if del := findCookie(rec2.Result().Cookies(), flashCookieName); del == nil || del.MaxAge >= 0 {
-			t.Errorf("flash=%s: el render debe borrar la cookie del flash (one-shot)", flash)
+			t.Errorf("flash=%s: the render must delete the flash cookie (one-shot)", flash)
 		}
-		// Tipado (fix J3-1): error → rojo con role=alert; resto → verde role=status.
+		// Typing (fix J3-1): error → red with role=alert; the rest → green
+		// role=status.
 		if flash == "error" {
 			if !strings.Contains(body, `class="toast-notice toast-notice--error"`) || !strings.Contains(body, `role="alert"`) {
-				t.Errorf("flash=error debe renderizarse como alerta (rojo + role=alert): %s", body)
+				t.Errorf("flash=error must render as an alert (red + role=alert): %s", body)
 			}
 		} else if !strings.Contains(body, `role="status"`) {
-			t.Errorf("flash=%s debe renderizarse como éxito (verde + role=status): %s", flash, body)
+			t.Errorf("flash=%s must render as a success (green + role=status): %s", flash, body)
 		}
 	}
 }
 
-// TestHandleIndexRendersOverview: con entorno sano, GET / renderiza el
-// overview (200) a través del mux de páginas (W2, rama principal de HandleIndex).
+// TestHandleIndexRendersOverview: with a healthy environment, GET / renders
+// the overview (200) through the pages mux (W2, main branch of HandleIndex).
 func TestHandleIndexRendersOverview(t *testing.T) {
 	seedRollbackEnv(t, nil)
 	mux := NewPagesMux()
@@ -336,28 +339,28 @@ func TestHandleIndexRendersOverview(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "Managed Per-Site WAF Domains") || !strings.Contains(body, "Caddy WAF UI") {
-		t.Errorf("el overview no se renderizó completo: %s", body)
+		t.Errorf("the overview did not render completely: %s", body)
 	}
 }
 
-// TestHandleLoginPageWithoutSessionRendersForm: GET /login sin sesión
-// renderiza el formulario (200). El flash one-shot redirige primero a una URL
-// limpia y se consume en el render siguiente.
+// TestHandleLoginPageWithoutSessionRendersForm: GET /login without a session
+// renders the form (200). The one-shot flash first redirects to a clean URL
+// and is consumed in the next render.
 func TestHandleLoginPageWithoutSessionRendersForm(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/login?flash=invalid_login", nil)
 	rec := httptest.NewRecorder()
 	HandleLoginPage(rec, req)
 
 	if rec.Code != http.StatusFound {
-		t.Fatalf("el consumo one-shot del flash debe redirigir, se obtuvo %d", rec.Code)
+		t.Fatalf("the one-shot flash consumption must redirect, got %d", rec.Code)
 	}
 	cookie := findCookie(rec.Result().Cookies(), flashCookieName)
 	if cookie == nil {
-		t.Fatal("el redirect de consumo debe fijar la cookie efímera del flash")
+		t.Fatal("the consuming redirect must set the ephemeral flash cookie")
 	}
 
 	req2 := httptest.NewRequest(http.MethodGet, "/login", nil)
@@ -366,16 +369,16 @@ func TestHandleLoginPageWithoutSessionRendersForm(t *testing.T) {
 	HandleLoginPage(rec2, req2)
 
 	if rec2.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec2.Code)
+		t.Fatalf("expected 200, got %d", rec2.Code)
 	}
 	body := rec2.Body.String()
 	if !strings.Contains(body, "Invalid access token.") {
-		t.Errorf("el flash invalid_login debe traducirse en el login: %s", body)
+		t.Errorf("the invalid_login flash must be translated in the login: %s", body)
 	}
 }
 
-// TestHandleLoginPageWithSessionRedirects: con sesión válida, /login
-// redirige a / (302).
+// TestHandleLoginPageWithSessionRedirects: with a valid session, /login
+// redirects to / (302).
 func TestHandleLoginPageWithSessionRedirects(t *testing.T) {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 	req := httptest.NewRequest(http.MethodGet, "/login", nil)
@@ -384,31 +387,31 @@ func TestHandleLoginPageWithSessionRedirects(t *testing.T) {
 	HandleLoginPage(rec, req)
 
 	if rec.Code != http.StatusFound {
-		t.Fatalf("se esperaba 302 con sesión válida, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 302 with a valid session, got %d", rec.Code)
 	}
 	if loc := rec.Header().Get("Location"); loc != "/" {
-		t.Errorf("se esperaba Location /, se obtuvo %q", loc)
+		t.Errorf("expected Location /, got %q", loc)
 	}
 }
 
-// TestExecutePageUnknownTemplateError: una plantilla desconocida produce error
-// (rama de executePage) y el handler responde 500.
+// TestExecutePageUnknownTemplateError: an unknown template produces an error
+// (executePage branch) and the handler responds 500.
 func TestExecutePageUnknownTemplateError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	err := executePage(rec, "no-existe", pageData{})
 	if err == nil {
-		t.Fatal("una plantilla desconocida debe devolver error")
+		t.Fatal("an unknown template must return an error")
 	}
 
 	rec2 := httptest.NewRecorder()
 	HandleIndex(rec2, httptest.NewRequest(http.MethodGet, "/?tab=no-existe", nil))
 	if rec2.Code != http.StatusInternalServerError {
-		t.Errorf("tab desconocido debe responder 500, se obtuvo %d", rec2.Code)
+		t.Errorf("an unknown tab must respond 500, got %d", rec2.Code)
 	}
 }
 
-// TestLoadLogsErrorBranchReturnsEmpty: sin archivo de audit log, loadLogs
-// devuelve página vacía (estado vacío honesto del tab logs).
+// TestLoadLogsErrorBranchReturnsEmpty: without an audit log file, loadLogs
+// returns an empty page (honest empty state of the logs tab).
 func TestLoadLogsErrorBranchReturnsEmpty(t *testing.T) {
 	t.Setenv("CADDY_UI_AUDIT_LOG", filepath.Join(t.TempDir(), "no-existe.log"))
 	t.Setenv("CADDY_UI_MANAGED_DIR", t.TempDir())
@@ -418,12 +421,12 @@ func TestLoadLogsErrorBranchReturnsEmpty(t *testing.T) {
 	data := buildPageData(req, "logs", nil)
 
 	if len(data.Logs) != 0 || data.LogPages != 0 {
-		t.Errorf("sin audit log debe quedar estado vacío, se obtuvo %d entradas / %d páginas", len(data.Logs), data.LogPages)
+		t.Errorf("without an audit log it must stay in the empty state, got %d entries / %d pages", len(data.Logs), data.LogPages)
 	}
 }
 
-// TestLoadLogsSuccessPopulatesEntries (triangulación): con audit log real el
-// tab logs se alimenta de las entradas.
+// TestLoadLogsSuccessPopulatesEntries (triangulation): with a real audit log
+// the logs tab is fed by the entries.
 func TestLoadLogsSuccessPopulatesEntries(t *testing.T) {
 	t.Setenv("CADDY_UI_AUDIT_LOG", filepath.Join("..", "logs", "testdata", "audit-valid.jsonl"))
 	t.Setenv("CADDY_UI_MANAGED_DIR", t.TempDir())
@@ -433,9 +436,9 @@ func TestLoadLogsSuccessPopulatesEntries(t *testing.T) {
 	data := buildPageData(req, "logs", nil)
 
 	if len(data.Logs) == 0 {
-		t.Fatal("con audit log real el tab logs debe cargar entradas")
+		t.Fatal("with a real audit log the logs tab must load entries")
 	}
 	if data.LogPages < 1 {
-		t.Errorf("con entradas debe existir al menos 1 página, se obtuvo %d", data.LogPages)
+		t.Errorf("with entries there must be at least 1 page, got %d", data.LogPages)
 	}
 }
