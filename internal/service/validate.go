@@ -6,44 +6,44 @@ import (
 	"strings"
 )
 
-// ErrInvalidDomain señala un nombre de dominio que no cumple el formato de
-// hostname estricto (hallazgo J2: inyección de directivas Caddyfile y path
-// traversal de backups). Los handlers REST lo traducen a 400 Bad Request,
-// mismo patrón sentinel que ErrInvalidMode y files.ErrInvalidBackup.
-var ErrInvalidDomain = errors.New("dominio inválido")
+// ErrInvalidDomain signals a domain name that does not meet the strict
+// hostname format (finding J2: Caddyfile directive injection and backup path
+// traversal). REST handlers translate it to 400 Bad Request, same sentinel
+// pattern as ErrInvalidMode and files.ErrInvalidBackup.
+var ErrInvalidDomain = errors.New("invalid domain")
 
-// maxDomainLength es el límite superior de un hostname/FQDN sin el punto
-// final (RFC 1035: 255 bytes con separadores → 253 caracteres de labels).
+// maxDomainLength is the upper bound of a hostname/FQDN without the trailing
+// dot (RFC 1035: 255 bytes with separators → 253 characters of labels).
 const maxDomainLength = 253
 
-// maxLabelLength es el límite por label de un hostname (RFC 1035).
+// maxLabelLength is the per-label limit of a hostname (RFC 1035).
 const maxLabelLength = 63
 
-// ValidateDomain valida un dominio como hostname/FQDN estricto: solo
-// [a-zA-Z0-9.-], sin doble punto consecutivo, sin puntos al inicio/final, y
-// con cada label cumpliendo [a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])? (1..63
-// caracteres, alfanuméricos o guiones, sin empezar ni terminar con guion).
-// Rechaza todo lo demás (slashes, whitespace, control chars, %0A, comillas,
-// llaves, $, @, "..", etc.) con un error descriptivo en español.
+// ValidateDomain validates a domain as a strict hostname/FQDN: only
+// [a-zA-Z0-9.-], no consecutive double dots, no leading/trailing dots, and
+// with each label meeting [a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])? (1..63
+// characters, alphanumeric or hyphens, without starting or ending with a
+// hyphen). It rejects everything else (slashes, whitespace, control chars,
+// %0A, quotes, braces, $, @, "..", etc.) with a descriptive error.
 //
-// Es la defensa PRINCIPAL contra la inyección de directivas en la cabecera
-// "# domain:" de los overlays y contra el path traversal de backups: se
-// invoca en las entradas públicas de la cadena (UpdateWAFMode,
-// UpdateExclusions, UpdateIPRules, Rollback) ANTES de cualquier uso del
-// dominio en rutas, plantillas o backups. DomainSlug (internal/domain/slug.go)
-// queda como capa adicional de saneamiento (defensa en profundidad).
+// It is the PRIMARY defense against directive injection in the "# domain:"
+// header of the overlays and against backup path traversal: it is invoked at
+// the public chain entries (UpdateWAFMode, UpdateExclusions, UpdateIPRules,
+// Rollback) BEFORE any use of the domain in paths, templates or backups.
+// DomainSlug (internal/domain/slug.go) remains as an additional sanitization
+// layer (defense in depth).
 func ValidateDomain(domain string) error {
 	if domain == "" {
-		return fmt.Errorf("%w: el dominio está vacío", ErrInvalidDomain)
+		return fmt.Errorf("%w: the domain is empty", ErrInvalidDomain)
 	}
 	if len(domain) > maxDomainLength {
-		return fmt.Errorf("%w: %q supera el máximo de %d caracteres", ErrInvalidDomain, domain, maxDomainLength)
+		return fmt.Errorf("%w: %q exceeds the maximum of %d characters", ErrInvalidDomain, domain, maxDomainLength)
 	}
 	if strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") {
-		return fmt.Errorf("%w: %q no puede empezar ni terminar con un punto", ErrInvalidDomain, domain)
+		return fmt.Errorf("%w: %q cannot start or end with a dot", ErrInvalidDomain, domain)
 	}
 	if strings.Contains(domain, "..") {
-		return fmt.Errorf("%w: %q contiene doble punto consecutivo", ErrInvalidDomain, domain)
+		return fmt.Errorf("%w: %q contains two consecutive dots", ErrInvalidDomain, domain)
 	}
 	for _, label := range strings.Split(domain, ".") {
 		if err := validateLabel(label); err != nil {
@@ -53,21 +53,21 @@ func ValidateDomain(domain string) error {
 	return nil
 }
 
-// validateLabel verifica un label individual de hostname: 1..63 caracteres,
-// solo alfanuméricos y guiones, sin guiones al inicio ni al final. Devuelve
-// el detalle sin el sentinel (ValidateDomain lo envuelve con contexto).
+// validateLabel verifies a single hostname label: 1..63 characters, only
+// alphanumerics and hyphens, without leading or trailing hyphens. It returns
+// the detail without the sentinel (ValidateDomain wraps it with context).
 func validateLabel(label string) error {
 	if len(label) == 0 || len(label) > maxLabelLength {
-		return fmt.Errorf("longitud de label fuera de rango (1..%d)", maxLabelLength)
+		return fmt.Errorf("label length out of range (1..%d)", maxLabelLength)
 	}
 	if label[0] == '-' || label[len(label)-1] == '-' {
-		return fmt.Errorf("los labels no pueden empezar ni terminar con guion")
+		return fmt.Errorf("labels cannot start or end with a hyphen")
 	}
 	for i := 0; i < len(label); i++ {
 		c := label[i]
 		ok := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
 		if !ok {
-			return fmt.Errorf("caracter %q no permitido (solo [a-zA-Z0-9.-])", c)
+			return fmt.Errorf("character %q not allowed (only [a-zA-Z0-9.-])", c)
 		}
 	}
 	return nil

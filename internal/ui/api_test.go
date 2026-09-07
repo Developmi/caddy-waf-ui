@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-// adminStubUI simula la Admin API de Caddy (:2019) para que la cadena de
-// servicio complete la recarga en los tests de handlers REST (package ui).
+// adminStubUI simulates the Caddy Admin API (:2019) so the service chain
+// completes the reload in the REST handler tests (package ui).
 type adminStubUI struct {
 	reloads int
 }
@@ -27,30 +27,30 @@ func (s *adminStubUI) handler(t *testing.T) http.Handler {
 			return
 		}
 		if r.Method != http.MethodPost || r.URL.Path != "/load" {
-			t.Errorf("el stub esperaba POST /load, recibió %s %s", r.Method, r.URL.Path)
+			t.Errorf("the stub expected POST /load, received %s %s", r.Method, r.URL.Path)
 		}
 		s.reloads++
 		w.WriteHeader(http.StatusOK)
 	})
 }
 
-// setupUIEnv prepara el entorno de archivos/env para los handlers REST del
-// paquete ui (misma convención D2 que los tests de integración) y devuelve el
-// router montado. Sin auth: los handlers se ejercitan directamente.
+// setupUIEnv prepares the files/env environment for the REST handlers of the
+// ui package (same D2 convention as the integration tests) and returns the
+// mounted router. Without auth: the handlers are exercised directly.
 func setupUIEnv(t *testing.T) *http.ServeMux {
 	t.Helper()
 	tmp := t.TempDir()
 	managedDir := filepath.Join(tmp, "ui-managed")
 	backupDir := filepath.Join(tmp, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("fallo creando managedDir: %v", err)
+		t.Fatalf("failed creating managedDir: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
 
 	caddyfile := filepath.Join(tmp, "Caddyfile")
 	if err := os.WriteFile(caddyfile, []byte("example.com {\n}\n"), 0600); err != nil {
-		t.Fatalf("fallo escribiendo Caddyfile: %v", err)
+		t.Fatalf("failed to write test Caddyfile: %v", err)
 	}
 	t.Setenv("CADDY_UI_CADDYFILE", caddyfile)
 
@@ -61,28 +61,28 @@ func setupUIEnv(t *testing.T) *http.ServeMux {
 	return NewRouter()
 }
 
-// seedUISnapshot siembra un snapshot en el dir de backups del slug.
+// seedUISnapshot seeds a snapshot in the backups dir of the slug.
 func seedUISnapshot(t *testing.T, slug, name, content string) {
 	t.Helper()
 	slugDir := filepath.Join(os.Getenv("CADDY_UI_BACKUP_DIR"), slug)
 	if err := os.MkdirAll(slugDir, 0750); err != nil {
-		t.Fatalf("fallo creando dir de backups: %v", err)
+		t.Fatalf("failed creating backups dir: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(slugDir, name), []byte(content), 0640); err != nil {
-		t.Fatalf("fallo sembrando snapshot %s: %v", name, err)
+		t.Fatalf("failed seeding snapshot %s: %v", name, err)
 	}
 }
 
 func apiRequest(t *testing.T, method, path, body string) *http.Request {
 	req, err := http.NewRequest(method, path, bytes.NewBufferString(body))
 	if err != nil {
-		t.Fatalf("fallo creando request: %v", err)
+		t.Fatalf("failed creating request: %v", err)
 	}
 	return req
 }
 
-// TestAPISetModeMalformedJSONReturns400: un cuerpo que no es JSON válido se
-// rechaza con 400 (W2, rama decode de HandleSetMode).
+// TestAPISetModeMalformedJSONReturns400: a body that is not valid JSON is
+// rejected with 400 (W2, decode branch of HandleSetMode).
 func TestAPISetModeMalformedJSONReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -90,13 +90,13 @@ func TestAPISetModeMalformedJSONReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/mode", `{`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con payload malformado, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with a malformed payload, got %d", rec.Code)
 	}
 }
 
-// TestAPISetModeOversizedBodyReturns413: un cuerpo que supera el límite de
-// 1 MiB (MaxBytesReader) se rechaza con 413, no con un 400 genérico (hallazgo
-// J1, defensa contra DoS por memoria).
+// TestAPISetModeOversizedBodyReturns413: a body over the 1 MiB limit
+// (MaxBytesReader) is rejected with 413, not with a generic 400 (finding J1,
+// defense against memory DoS).
 func TestAPISetModeOversizedBodyReturns413(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -105,12 +105,12 @@ func TestAPISetModeOversizedBodyReturns413(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/mode", body))
 
 	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("se esperaba 413 con body > 1MiB, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 413 with a body > 1MiB, got %d", rec.Code)
 	}
 }
 
-// TestAPISetModeInvalidModeReturns400: un modo inválido se traduce a 400
-// (contrato REST ErrInvalidMode).
+// TestAPISetModeInvalidModeReturns400: an invalid mode is translated to 400
+// (REST contract ErrInvalidMode).
 func TestAPISetModeInvalidModeReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -118,13 +118,14 @@ func TestAPISetModeInvalidModeReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/mode", `{"mode":"BlockAll"}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con modo inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid mode, got %d", rec.Code)
 	}
 }
 
-// TestAPISetModeInvalidDomainReturns400: un dominio que no pasa la validación
-// estricta se traduce a 400 vía service.ErrInvalidDomain (handoff F2, mismo
-// patrón que ErrInvalidMode) - es un error de cliente, no de servidor.
+// TestAPISetModeInvalidDomainReturns400: a domain that does not pass the
+// strict validation is translated to 400 via service.ErrInvalidDomain
+// (handoff F2, same pattern as ErrInvalidMode) - it is a client error, not a
+// server one.
 func TestAPISetModeInvalidDomainReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -132,18 +133,18 @@ func TestAPISetModeInvalidDomainReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/bad%20domain/mode", `{"mode":"On"}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con dominio inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid domain, got %d", rec.Code)
 	}
 }
 
-// TestAPISetModeServiceErrorReturns500: un error del servicio que NO es de
-// validación se traduce a 500 (W2, rama error genérico).
+// TestAPISetModeServiceErrorReturns500: a service error that is NOT a
+// validation one is translated to 500 (W2, generic error branch).
 func TestAPISetModeServiceErrorReturns500(t *testing.T) {
 	handler := setupUIEnv(t)
-	// managedDir apunta a un archivo: la lectura del estado previo falla ENOTDIR.
+	// managedDir points at a file: the previous-state read fails with ENOTDIR.
 	file := filepath.Join(t.TempDir(), "managed-es-un-archivo")
 	if err := os.WriteFile(file, []byte("x"), 0640); err != nil {
-		t.Fatalf("fallo sembrando archivo: %v", err)
+		t.Fatalf("failed seeding file: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", file)
 
@@ -151,12 +152,12 @@ func TestAPISetModeServiceErrorReturns500(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/mode", `{"mode":"On"}`))
 
 	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("se esperaba 500 con error de servicio, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 500 with a service error, got %d", rec.Code)
 	}
 }
 
-// TestAPISetModeSuccess: PUT válido regenera el overlay y responde el
-// contrato de confirmación.
+// TestAPISetModeSuccess: a valid PUT regenerates the overlay and responds
+// with the confirmation contract.
 func TestAPISetModeSuccess(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -164,21 +165,21 @@ func TestAPISetModeSuccess(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/mode", `{"mode":"On"}`))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d (%s)", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), `"status":"success"`) {
-		t.Errorf("el cuerpo no confirma el éxito: %s", rec.Body.String())
+		t.Errorf("the body does not confirm the success: %s", rec.Body.String())
 	}
 	overlay, err := os.ReadFile(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf"))
 	if err != nil {
-		t.Fatalf("no se generó el overlay: %v", err)
+		t.Fatalf("the overlay was not generated: %v", err)
 	}
 	if !strings.Contains(string(overlay), "SecRuleEngine On") {
-		t.Errorf("el overlay no contiene el modo enviado:\n%s", overlay)
+		t.Errorf("the overlay does not contain the sent mode:\n%s", overlay)
 	}
 }
 
-// TestAPISetExclusionsMalformedJSONReturns400: rama decode de
+// TestAPISetExclusionsMalformedJSONReturns400: decode branch of
 // HandleSetExclusions (W2).
 func TestAPISetExclusionsMalformedJSONReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
@@ -187,13 +188,14 @@ func TestAPISetExclusionsMalformedJSONReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/exclusions", `{"exclusions":[`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con payload malformado, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with a malformed payload, got %d", rec.Code)
 	}
 }
 
-// TestAPISetExclusionsValidationErrorReturns400: una exclusión que no pasa la
-// validación es un payload de cliente inválido → 400, no un fallo de servidor
-// (SUGGESTION #4 del verify: validación antes de la cadena, como HandleSetMode).
+// TestAPISetExclusionsValidationErrorReturns400: an exclusion that does not
+// pass the validation is an invalid client payload → 400, not a server
+// failure (SUGGESTION #4 of the verify: validation before the chain, like
+// HandleSetMode).
 func TestAPISetExclusionsValidationErrorReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -202,12 +204,12 @@ func TestAPISetExclusionsValidationErrorReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/exclusions", body))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con exclusión inválida, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid exclusion, got %d", rec.Code)
 	}
 }
 
-// TestAPISetExclusionsUnknownTypeReturns400 (triangulación): un tipo de
-// exclusión desconocido también se rechaza con 400 antes de tocar la cadena.
+// TestAPISetExclusionsUnknownTypeReturns400 (triangulation): an unknown
+// exclusion type is also rejected with 400 before touching the chain.
 func TestAPISetExclusionsUnknownTypeReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -215,13 +217,13 @@ func TestAPISetExclusionsUnknownTypeReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/exclusions", `{"exclusions":[{"type":"bogus","value":"1"}]}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con tipo de exclusión desconocido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an unknown exclusion type, got %d", rec.Code)
 	}
 }
 
-// TestAPISetExclusionsInvalidDomainReturns400: un dominio inválido es 400 vía
-// service.ErrInvalidDomain (handoff F2) incluso con payload de exclusiones
-// válido.
+// TestAPISetExclusionsInvalidDomainReturns400: an invalid domain is 400 via
+// service.ErrInvalidDomain (handoff F2) even with a valid exclusions
+// payload.
 func TestAPISetExclusionsInvalidDomainReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -229,18 +231,18 @@ func TestAPISetExclusionsInvalidDomainReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/bad%20domain/exclusions", `{"exclusions":[{"type":"id","value":"941100"}]}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con dominio inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid domain, got %d", rec.Code)
 	}
 }
 
-// TestAPISetExclusionsServiceErrorReturns500: con un payload VÁLIDO, un error
-// real de la cadena (managedDir es un archivo → ENOTDIR al leer el estado
-// previo) sigue devolviendo 500 - solo la validación de payload es 400.
+// TestAPISetExclusionsServiceErrorReturns500: with a VALID payload, a real
+// chain error (managedDir is a file → ENOTDIR when reading the previous
+// state) still returns 500 - only the payload validation is 400.
 func TestAPISetExclusionsServiceErrorReturns500(t *testing.T) {
 	handler := setupUIEnv(t)
 	file := filepath.Join(t.TempDir(), "managed-es-un-archivo")
 	if err := os.WriteFile(file, []byte("x"), 0640); err != nil {
-		t.Fatalf("fallo sembrando archivo: %v", err)
+		t.Fatalf("failed seeding file: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", file)
 
@@ -248,11 +250,11 @@ func TestAPISetExclusionsServiceErrorReturns500(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/exclusions", `{"exclusions":[{"type":"id","value":"941100"}]}`))
 
 	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("se esperaba 500 con error de servicio, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 500 with a service error, got %d", rec.Code)
 	}
 }
 
-// TestAPISetExclusionsSuccess: PUT válido de exclusiones → 200.
+// TestAPISetExclusionsSuccess: a valid PUT of exclusions → 200.
 func TestAPISetExclusionsSuccess(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -261,19 +263,19 @@ func TestAPISetExclusionsSuccess(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/exclusions", body))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d (%s)", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	overlay, err := os.ReadFile(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "exclusions-example_com.conf"))
 	if err != nil {
-		t.Fatalf("no se generó el overlay de exclusiones: %v", err)
+		t.Fatalf("the exclusions overlay was not generated: %v", err)
 	}
 	if !strings.Contains(string(overlay), "ARGS:q") {
-		t.Errorf("el overlay no contiene la exclusión targeteada:\n%s", overlay)
+		t.Errorf("the overlay does not contain the targeted exclusion:\n%s", overlay)
 	}
 }
 
-// TestAPISetIPRulesMalformedJSONReturns400: rama decode de HandleSetIPRules
-// (W2).
+// TestAPISetIPRulesMalformedJSONReturns400: decode branch of
+// HandleSetIPRules (W2).
 func TestAPISetIPRulesMalformedJSONReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -281,12 +283,12 @@ func TestAPISetIPRulesMalformedJSONReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/iprules", `{"denylist":`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con payload malformado, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with a malformed payload, got %d", rec.Code)
 	}
 }
 
-// TestAPISetIPRulesValidationErrorReturns400: una entrada IP inválida es un
-// payload de cliente inválido → 400, no un fallo de servidor (SUGGESTION #4).
+// TestAPISetIPRulesValidationErrorReturns400: an invalid IP entry is an
+// invalid client payload → 400, not a server failure (SUGGESTION #4).
 func TestAPISetIPRulesValidationErrorReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -294,12 +296,12 @@ func TestAPISetIPRulesValidationErrorReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/iprules", `{"denylist":["not-an-ip"]}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con entrada IP inválida, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid IP entry, got %d", rec.Code)
 	}
 }
 
-// TestAPISetIPRulesAllowlistInvalidReturns400 (triangulación): la validación
-// cubre también la allowlist, no solo la denylist.
+// TestAPISetIPRulesAllowlistInvalidReturns400 (triangulation): the
+// validation also covers the allowlist, not only the denylist.
 func TestAPISetIPRulesAllowlistInvalidReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -307,12 +309,12 @@ func TestAPISetIPRulesAllowlistInvalidReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/iprules", `{"allowlist":["300.300.300.300"]}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con entrada de allowlist inválida, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid allowlist entry, got %d", rec.Code)
 	}
 }
 
-// TestAPISetIPRulesInvalidDomainReturns400: un dominio inválido es 400 vía
-// service.ErrInvalidDomain (handoff F2) incluso con payload de IP válido.
+// TestAPISetIPRulesInvalidDomainReturns400: an invalid domain is 400 via
+// service.ErrInvalidDomain (handoff F2) even with a valid IP payload.
 func TestAPISetIPRulesInvalidDomainReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -320,18 +322,18 @@ func TestAPISetIPRulesInvalidDomainReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/bad%20domain/iprules", `{"denylist":["192.0.2.5"]}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con dominio inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid domain, got %d", rec.Code)
 	}
 }
 
-// TestAPISetIPRulesServiceErrorReturns500: con un payload VÁLIDO, un error
-// real de la cadena (managedDir es un archivo → ENOTDIR) sigue devolviendo
-// 500 - solo la validación de payload es 400.
+// TestAPISetIPRulesServiceErrorReturns500: with a VALID payload, a real
+// chain error (managedDir is a file → ENOTDIR) still returns 500 - only the
+// payload validation is 400.
 func TestAPISetIPRulesServiceErrorReturns500(t *testing.T) {
 	handler := setupUIEnv(t)
 	file := filepath.Join(t.TempDir(), "managed-es-un-archivo")
 	if err := os.WriteFile(file, []byte("x"), 0640); err != nil {
-		t.Fatalf("fallo sembrando archivo: %v", err)
+		t.Fatalf("failed seeding file: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", file)
 
@@ -339,11 +341,11 @@ func TestAPISetIPRulesServiceErrorReturns500(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/iprules", `{"denylist":["192.0.2.5"]}`))
 
 	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("se esperaba 500 con error de servicio, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 500 with a service error, got %d", rec.Code)
 	}
 }
 
-// TestAPISetIPRulesSuccess: PUT válido de reglas IP → 200.
+// TestAPISetIPRulesSuccess: a valid PUT of IP rules → 200.
 func TestAPISetIPRulesSuccess(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -351,24 +353,24 @@ func TestAPISetIPRulesSuccess(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPut, "/api/sites/example.com/iprules", `{"denylist":["192.0.2.5"]}`))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d (%s)", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	overlay, err := os.ReadFile(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "ip-rules-example_com.conf"))
 	if err != nil {
-		t.Fatalf("no se generó el overlay de ip-rules: %v", err)
+		t.Fatalf("the ip-rules overlay was not generated: %v", err)
 	}
 	if !strings.Contains(string(overlay), "192.0.2.5/32") {
-		t.Errorf("el overlay no contiene la IP normalizada:\n%s", overlay)
+		t.Errorf("the overlay does not contain the normalized IP:\n%s", overlay)
 	}
 }
 
-// TestAPIListBackupsCorruptDirReturns500: un backup dir corrupto (archivo en
-// vez de directorio) produce 500 - nunca un JSON inventado (W2).
+// TestAPIListBackupsCorruptDirReturns500: a corrupt backup dir (file instead
+// of directory) produces 500 - never an invented JSON (W2).
 func TestAPIListBackupsCorruptDirReturns500(t *testing.T) {
 	handler := setupUIEnv(t)
 	file := filepath.Join(t.TempDir(), "backup-es-un-archivo")
 	if err := os.WriteFile(file, []byte("x"), 0640); err != nil {
-		t.Fatalf("fallo sembrando archivo: %v", err)
+		t.Fatalf("failed seeding file: %v", err)
 	}
 	t.Setenv("CADDY_UI_BACKUP_DIR", file)
 
@@ -376,12 +378,12 @@ func TestAPIListBackupsCorruptDirReturns500(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodGet, "/api/sites/example.com/backups", ""))
 
 	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("se esperaba 500 con backup dir corrupto, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 500 with a corrupt backup dir, got %d", rec.Code)
 	}
 }
 
-// TestAPIListBackupsEmptyReturns200: sin backups responde 200 con [] (estado
-// vacío honesto).
+// TestAPIListBackupsEmptyReturns200: without backups it responds 200 with []
+// (honest empty state).
 func TestAPIListBackupsEmptyReturns200(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -389,15 +391,15 @@ func TestAPIListBackupsEmptyReturns200(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodGet, "/api/sites/example.com/backups", ""))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200 sin backups, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200 without backups, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "[]") {
-		t.Errorf("sin backups el cuerpo debe ser un array vacío: %s", rec.Body.String())
+		t.Errorf("without backups the body must be an empty array: %s", rec.Body.String())
 	}
 }
 
-// TestAPIListBackupsSuccess (triangulación): con snapshots el listado los
-// incluye en el JSON.
+// TestAPIListBackupsSuccess (triangulation): with snapshots the listing
+// includes them in the JSON.
 func TestAPIListBackupsSuccess(t *testing.T) {
 	handler := setupUIEnv(t)
 	seedUISnapshot(t, "example_com", "2020-01-01T00-00-00Z.waf.conf", "waf-2020")
@@ -406,14 +408,15 @@ func TestAPIListBackupsSuccess(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodGet, "/api/sites/example.com/backups", ""))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "2020-01-01T00-00-00Z") || !strings.Contains(rec.Body.String(), "waf") {
-		t.Errorf("el listado debe incluir los snapshots: %s", rec.Body.String())
+		t.Errorf("the listing must include the snapshots: %s", rec.Body.String())
 	}
 }
 
-// TestAPIRollbackMalformedJSONReturns400: rama decode de HandleRollback (W2).
+// TestAPIRollbackMalformedJSONReturns400: decode branch of HandleRollback
+// (W2).
 func TestAPIRollbackMalformedJSONReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -421,12 +424,12 @@ func TestAPIRollbackMalformedJSONReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPost, "/api/sites/example.com/rollback", `{"backup":`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con payload malformado, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with a malformed payload, got %d", rec.Code)
 	}
 }
 
-// TestAPIRollbackMissingBackupReturns400: un backup inexistente (pero con
-// nombre canónico válido) se traduce a 400 vía ErrInvalidBackup (W2).
+// TestAPIRollbackMissingBackupReturns400: a nonexistent backup (but with a
+// valid canonical name) is translated to 400 via ErrInvalidBackup (W2).
 func TestAPIRollbackMissingBackupReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -434,12 +437,12 @@ func TestAPIRollbackMissingBackupReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPost, "/api/sites/example.com/rollback", `{"backup":"2099-01-01T00-00-00Z.waf.conf"}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con backup inexistente, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with a nonexistent backup, got %d", rec.Code)
 	}
 }
 
-// TestAPIRollbackInvalidDomainReturns400: un dominio inválido es 400 vía
-// service.ErrInvalidDomain (handoff F2) antes de tocar la cadena.
+// TestAPIRollbackInvalidDomainReturns400: an invalid domain is 400 via
+// service.ErrInvalidDomain (handoff F2) before touching the chain.
 func TestAPIRollbackInvalidDomainReturns400(t *testing.T) {
 	handler := setupUIEnv(t)
 
@@ -447,17 +450,17 @@ func TestAPIRollbackInvalidDomainReturns400(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPost, "/api/sites/bad%20domain/rollback", `{"backup":"2020-01-01T00-00-00Z.waf.conf"}`))
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con dominio inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 400 with an invalid domain, got %d", rec.Code)
 	}
 }
 
-// TestAPIRollbackServiceErrorReturns500: un error de servicio distinto de
-// ErrInvalidBackup se traduce a 500 (W2, rama error genérico).
+// TestAPIRollbackServiceErrorReturns500: a service error other than
+// ErrInvalidBackup is translated to 500 (W2, generic error branch).
 func TestAPIRollbackServiceErrorReturns500(t *testing.T) {
 	handler := setupUIEnv(t)
 	file := filepath.Join(t.TempDir(), "backup-es-un-archivo")
 	if err := os.WriteFile(file, []byte("x"), 0640); err != nil {
-		t.Fatalf("fallo sembrando archivo: %v", err)
+		t.Fatalf("failed seeding file: %v", err)
 	}
 	t.Setenv("CADDY_UI_BACKUP_DIR", file)
 
@@ -465,46 +468,47 @@ func TestAPIRollbackServiceErrorReturns500(t *testing.T) {
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPost, "/api/sites/example.com/rollback", `{"backup":"2099-01-01T00-00-00Z.waf.conf"}`))
 
 	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("se esperaba 500 con error de servicio, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 500 with a service error, got %d", rec.Code)
 	}
 }
 
-// TestAPIRollbackSuccess: rollback válido restaura el overlay y responde 200.
+// TestAPIRollbackSuccess: a valid rollback restores the overlay and responds
+// 200.
 func TestAPIRollbackSuccess(t *testing.T) {
 	handler := setupUIEnv(t)
 
 	overlayPath := filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf")
-	if err := os.WriteFile(overlayPath, []byte("estado actual"), 0640); err != nil {
-		t.Fatalf("fallo sembrando overlay: %v", err)
+	if err := os.WriteFile(overlayPath, []byte("current state"), 0640); err != nil {
+		t.Fatalf("failed seeding overlay: %v", err)
 	}
-	seedUISnapshot(t, "example_com", "2020-01-01T00-00-00Z.waf.conf", "estado restaurado")
+	seedUISnapshot(t, "example_com", "2020-01-01T00-00-00Z.waf.conf", "restored state")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, apiRequest(t, http.MethodPost, "/api/sites/example.com/rollback", `{"backup":"2020-01-01T00-00-00Z.waf.conf"}`))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d (%s)", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	overlay, err := os.ReadFile(overlayPath)
 	if err != nil {
-		t.Fatalf("no se restauró el overlay: %v", err)
+		t.Fatalf("the overlay was not restored: %v", err)
 	}
-	if string(overlay) != "estado restaurado" {
-		t.Errorf("el overlay debe contener los bytes del snapshot: %q", overlay)
+	if string(overlay) != "restored state" {
+		t.Errorf("the overlay must contain the bytes of the snapshot: %q", overlay)
 	}
 }
 
-// TestAPIHealthReturnsOK: HealthHandler responde 200 con el contrato de
-// readiness. /health NO es ruta del mux de la API (main.go lo monta aparte,
-// fuera del auth): el handler se ejercita directamente.
+// TestAPIHealthReturnsOK: HealthHandler responds 200 with the readiness
+// contract. /health is NOT a route of the API mux (main.go mounts it apart,
+// outside the auth): the handler is exercised directly.
 func TestAPIHealthReturnsOK(t *testing.T) {
 	rec := httptest.NewRecorder()
 	HealthHandler().ServeHTTP(rec, apiRequest(t, http.MethodGet, "/health", ""))
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
-		t.Errorf("el cuerpo de /health no es el esperado: %s", rec.Body.String())
+		t.Errorf("the body of /health is not the expected one: %s", rec.Body.String())
 	}
 }

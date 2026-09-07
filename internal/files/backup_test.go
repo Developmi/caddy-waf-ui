@@ -10,56 +10,57 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/files"
 )
 
-// TestBackupWildcardSlug verifica la corrección del bug #265:
-// el directorio y el archivo origen deben usar el slug normalizado,
-// nunca el dominio crudo (un "*" literal no puede formar parte de una ruta segura).
+// TestBackupWildcardSlug verifies the fix for bug #265:
+// the directory and the source file must use the normalized slug,
+// never the raw domain (a literal "*" cannot be part of a safe path).
 func TestBackupWildcardSlug(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedDir := filepath.Join(tmpDir, "ui-managed")
 	backupDir := filepath.Join(tmpDir, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear managedDir: %v", err)
+		t.Fatalf("failed to create managedDir: %v", err)
 	}
 
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
 
-	// El archivo origen real se genera como waf-{slug}.conf (ver WAFConfigPath).
+	// The real source file is generated as waf-{slug}.conf (see WAFConfigPath).
 	sourcePath := filepath.Join(managedDir, "waf-wildcard_example_com.conf")
 	content := []byte("# domain: *.example.com | mode: On | updated: 2026-07-22T14:00:00Z\n")
 	if err := os.WriteFile(sourcePath, content, 0640); err != nil {
-		t.Fatalf("Fallo al crear archivo origen: %v", err)
+		t.Fatalf("failed to create source file: %v", err)
 	}
 
 	if err := files.Backup("*.example.com", "waf"); err != nil {
-		t.Fatalf("Backup falló: %v", err)
+		t.Fatalf("Backup failed: %v", err)
 	}
 
-	// El backup debe vivir en el directorio con slug normalizado.
+	// The backup must live in the slug-normalized directory.
 	slugDir := filepath.Join(backupDir, "wildcard_example_com")
 	entries, err := os.ReadDir(slugDir)
 	if err != nil {
-		t.Fatalf("No se encontró el directorio de backup con slug %q: %v", slugDir, err)
+		t.Fatalf("backup directory with slug %q not found: %v", slugDir, err)
 	}
 	if len(entries) != 1 {
-		t.Fatalf("Se esperaba 1 snapshot en %q, se encontraron %d", slugDir, len(entries))
+		t.Fatalf("expected 1 snapshot in %q, found %d", slugDir, len(entries))
 	}
 
-	// Nunca debe existir un directorio con el dominio crudo.
+	// A directory with the raw domain must never exist.
 	rawDir := filepath.Join(backupDir, "*.example.com")
 	if _, err := os.Stat(rawDir); !os.IsNotExist(err) {
-		t.Errorf("No debe existir un directorio de backup con el dominio crudo %q (bug #265)", rawDir)
+		t.Errorf("a backup directory with the raw domain %q must not exist (bug #265)", rawDir)
 	}
 }
 
-// TestBackupRetention verifica que se respete CADDY_UI_BACKUP_KEEP:
-// al superar el límite se eliminan los snapshots más antiguos del mismo tipo.
+// TestBackupRetention verifies that CADDY_UI_BACKUP_KEEP is honored:
+// when the limit is exceeded, the oldest snapshots of the same type are
+// removed.
 func TestBackupRetention(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedDir := filepath.Join(tmpDir, "ui-managed")
 	backupDir := filepath.Join(tmpDir, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear managedDir: %v", err)
+		t.Fatalf("failed to create managedDir: %v", err)
 	}
 
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
@@ -68,13 +69,14 @@ func TestBackupRetention(t *testing.T) {
 
 	sourcePath := filepath.Join(managedDir, "waf-api_example_com.conf")
 	if err := os.WriteFile(sourcePath, []byte("# domain: api.example.com\n"), 0640); err != nil {
-		t.Fatalf("Fallo al crear archivo origen: %v", err)
+		t.Fatalf("failed to create source file: %v", err)
 	}
 
-	// Sembrar dos snapshots previos del mismo tipo (orden alfabético = cronológico).
+	// Seed two previous snapshots of the same type (alphabetical order =
+	// chronological).
 	slugDir := filepath.Join(backupDir, "api_example_com")
 	if err := os.MkdirAll(slugDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear slugDir: %v", err)
+		t.Fatalf("failed to create slugDir: %v", err)
 	}
 	old := []string{
 		"2020-01-01T00-00-00Z.waf.conf",
@@ -82,57 +84,59 @@ func TestBackupRetention(t *testing.T) {
 	}
 	for _, name := range old {
 		if err := os.WriteFile(filepath.Join(slugDir, name), []byte("v"), 0640); err != nil {
-			t.Fatalf("Fallo al sembrar snapshot %s: %v", name, err)
+			t.Fatalf("failed to seed snapshot %s: %v", name, err)
 		}
 	}
 
 	if err := files.Backup("api.example.com", "waf"); err != nil {
-		t.Fatalf("Backup falló: %v", err)
+		t.Fatalf("Backup failed: %v", err)
 	}
 
 	entries, err := os.ReadDir(slugDir)
 	if err != nil {
-		t.Fatalf("Fallo al leer el directorio de backups: %v", err)
+		t.Fatalf("failed to read the backups directory: %v", err)
 	}
 	if len(entries) != 1 {
-		t.Fatalf("Retención con KEEP=1: se esperaba 1 snapshot, se encontraron %d", len(entries))
+		t.Fatalf("retention with KEEP=1: expected 1 snapshot, found %d", len(entries))
 	}
-	// El snapshot sobreviviente debe ser el recién creado, no los sembrados.
+	// The surviving snapshot must be the newly created one, not the seeded ones.
 	if entries[0].Name() == old[0] || entries[0].Name() == old[1] {
-		t.Errorf("La retención dejó un snapshot sembrado (%s) en lugar del más nuevo", entries[0].Name())
+		t.Errorf("retention left a seeded snapshot (%s) instead of the newest one", entries[0].Name())
 	}
-	// El snapshot creado ahora debe llevar la marca de tiempo actual (formato ISO8601 con ":" reemplazado).
+	// The snapshot created now must carry the current timestamp (ISO8601
+	// format with ":" replaced).
 	if got := entries[0].Name(); got != time.Now().UTC().Format("2006-01-02T15-04-05Z")+".waf.conf" {
-		t.Errorf("Nombre del snapshot = %q; se esperaba el formato {ISO8601}.waf.conf", got)
+		t.Errorf("snapshot name = %q; expected the {ISO8601}.waf.conf format", got)
 	}
 }
 
-// TestBackupSourceStatErrorReturnsError: un error de stat distinto de
-// IsNotExist (p.ej. ENOTDIR porque managedDir es un archivo) debe propagarse,
-// no tratarse como "nada que respaldar" (hallazgo J1).
+// TestBackupSourceStatErrorReturnsError: a stat error other than IsNotExist
+// (e.g. ENOTDIR because managedDir is a file) must be propagated, not treated
+// as "nothing to back up" (finding J1).
 func TestBackupSourceStatErrorReturnsError(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedAsFile := filepath.Join(tmpDir, "managed-es-un-archivo")
 	if err := os.WriteFile(managedAsFile, []byte("x"), 0640); err != nil {
-		t.Fatalf("Fallo al sembrar archivo: %v", err)
+		t.Fatalf("failed to seed file: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedAsFile)
 	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups"))
 
 	if err := files.Backup("example.com", "waf"); err == nil {
-		t.Fatal("Backup con stat fallido (ENOTDIR) debe devolver error")
+		t.Fatal("Backup with a failed stat (ENOTDIR) must return an error")
 	}
 }
 
-// TestBackupRetentionIgnoresNonCanonical: la retención usa la misma regex
-// estricta que ListBackups - un archivo que solo "contiene" .waf.conf pero no
-// sigue el formato canónico no cuenta para el límite ni se elimina.
+// TestBackupRetentionIgnoresNonCanonical: retention uses the same strict
+// regex as ListBackups - a file that merely "contains" .waf.conf but does not
+// follow the canonical format does not count toward the limit nor get
+// removed.
 func TestBackupRetentionIgnoresNonCanonical(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedDir := filepath.Join(tmpDir, "ui-managed")
 	backupDir := filepath.Join(tmpDir, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear managedDir: %v", err)
+		t.Fatalf("failed to create managedDir: %v", err)
 	}
 
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
@@ -141,15 +145,15 @@ func TestBackupRetentionIgnoresNonCanonical(t *testing.T) {
 
 	sourcePath := filepath.Join(managedDir, "waf-example_com.conf")
 	if err := os.WriteFile(sourcePath, []byte("# domain: example.com\n"), 0640); err != nil {
-		t.Fatalf("Fallo al crear archivo origen: %v", err)
+		t.Fatalf("failed to create source file: %v", err)
 	}
 
 	slugDir := filepath.Join(backupDir, "example_com")
 	if err := os.MkdirAll(slugDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear slugDir: %v", err)
+		t.Fatalf("failed to create slugDir: %v", err)
 	}
-	// Tres snapshots canónicos + un nombre no canónico que un strings.Contains
-	// hubiera contado (y eliminado) por error.
+	// Three canonical snapshots + a non-canonical name that a strings.Contains
+	// would have counted (and removed) by mistake.
 	for _, name := range []string{
 		"2020-01-01T00-00-00Z.waf.conf",
 		"2020-01-02T00-00-00Z.waf.conf",
@@ -157,43 +161,43 @@ func TestBackupRetentionIgnoresNonCanonical(t *testing.T) {
 		"notas.waf.conf.txt",
 	} {
 		if err := os.WriteFile(filepath.Join(slugDir, name), []byte("v"), 0640); err != nil {
-			t.Fatalf("Fallo al sembrar %s: %v", name, err)
+			t.Fatalf("failed to seed %s: %v", name, err)
 		}
 	}
 
 	if err := files.Backup("example.com", "waf"); err != nil {
-		t.Fatalf("Backup falló: %v", err)
+		t.Fatalf("Backup failed: %v", err)
 	}
 
-	// KEEP=1: el archivo no canónico debe sobrevivir a la retención.
+	// KEEP=1: the non-canonical file must survive retention.
 	if _, err := os.Stat(filepath.Join(slugDir, "notas.waf.conf.txt")); err != nil {
-		t.Errorf("el archivo no canónico debe sobrevivir a la retención: %v", err)
+		t.Errorf("the non-canonical file must survive retention: %v", err)
 	}
 	entries, err := os.ReadDir(slugDir)
 	if err != nil {
-		t.Fatalf("Fallo al leer slugDir: %v", err)
+		t.Fatalf("failed to read slugDir: %v", err)
 	}
-	// 1 canónico (el recién creado) + 1 no canónico.
+	// 1 canonical (the newly created) + 1 non-canonical.
 	if len(entries) != 2 {
-		t.Fatalf("KEEP=1 con archivo no canónico: se esperaban 2 archivos, hay %d", len(entries))
+		t.Fatalf("KEEP=1 with a non-canonical file: expected 2 files, got %d", len(entries))
 	}
 }
 
-// seedSnapshot siembra un archivo de snapshot en el directorio de backups del slug.
+// seedSnapshot seeds a snapshot file in the backups directory of the slug.
 func seedSnapshot(t *testing.T, backupDir, domainName, name, content string) {
 	t.Helper()
 	slugDir := filepath.Join(backupDir, domain.DomainSlug(domainName))
 	if err := os.MkdirAll(slugDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear slugDir %q: %v", slugDir, err)
+		t.Fatalf("failed to create slugDir %q: %v", slugDir, err)
 	}
 	if err := os.WriteFile(filepath.Join(slugDir, name), []byte(content), 0640); err != nil {
-		t.Fatalf("Fallo al sembrar snapshot %s: %v", name, err)
+		t.Fatalf("failed to seed snapshot %s: %v", name, err)
 	}
 }
 
-// TestListBackupsSortedNewestFirst: ListBackups devuelve los snapshots del
-// dominio ordenados del más reciente al más antiguo, con tamaño real, e ignora
-// archivos que no siguen el patrón {ISO8601}.{tipo}.conf.
+// TestListBackupsSortedNewestFirst: ListBackups returns the domain snapshots
+// ordered from newest to oldest, with the real size, and ignores files that
+// do not follow the {ISO8601}.{type}.conf pattern.
 func TestListBackupsSortedNewestFirst(t *testing.T) {
 	tmpDir := t.TempDir()
 	backupDir := filepath.Join(tmpDir, "backups")
@@ -206,52 +210,54 @@ func TestListBackupsSortedNewestFirst(t *testing.T) {
 
 	backups, err := files.ListBackups("api.example.com")
 	if err != nil {
-		t.Fatalf("ListBackups falló: %v", err)
+		t.Fatalf("ListBackups failed: %v", err)
 	}
 	if len(backups) != 3 {
-		t.Fatalf("Se esperaban 3 snapshots (el .txt no cuenta), se obtuvieron %d", len(backups))
+		t.Fatalf("expected 3 snapshots (the .txt does not count), got %d", len(backups))
 	}
 
-	// Orden: del más reciente al más antiguo (el ISO con guiones ordena lexicográfico).
+	// Order: newest to oldest (the hyphenated ISO sorts lexicographically).
 	if backups[0].Timestamp != "2021-01-01T00-00-00Z" || backups[0].FileType != "waf" {
-		t.Errorf("El primero debe ser el waf de 2021, se obtuvo %+v", backups[0])
+		t.Errorf("the first must be the 2021 waf, got %+v", backups[0])
 	}
 	if backups[1].FileType != "exclusions" {
-		t.Errorf("El segundo debe ser el exclusions de 2021, se obtuvo %+v", backups[1])
+		t.Errorf("the second must be the 2021 exclusions, got %+v", backups[1])
 	}
 	if backups[2].Timestamp != "2020-01-01T00-00-00Z" || backups[2].FileType != "waf" {
-		t.Errorf("El último debe ser el waf de 2020, se obtuvo %+v", backups[2])
+		t.Errorf("the last must be the 2020 waf, got %+v", backups[2])
 	}
 
-	// El tamaño debe ser el real del archivo.
+	// The size must be the real one of the file.
 	if backups[0].Size != int64(len("waf-2021")) {
-		t.Errorf("Size del snapshot waf-2021 = %d; se esperaba %d", backups[0].Size, len("waf-2021"))
+		t.Errorf("size of snapshot waf-2021 = %d; expected %d", backups[0].Size, len("waf-2021"))
 	}
 }
 
-// TestListBackupsEmptyDirReturnsEmpty: sin directorio de backups (o vacío) el
-// listado devuelve una lista vacía, no un error (estado vacío honesto en la UI).
+// TestListBackupsEmptyDirReturnsEmpty: with no backups directory (or empty)
+// the listing returns an empty list, not an error (honest empty state in the
+// UI).
 func TestListBackupsEmptyDirReturnsEmpty(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups")) // no existe aún
+	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups")) // does not exist yet
 
 	backups, err := files.ListBackups("api.example.com")
 	if err != nil {
-		t.Fatalf("ListBackups sin directorio debe devolver lista vacía sin error, se obtuvo: %v", err)
+		t.Fatalf("ListBackups without a directory must return an empty list without error, got: %v", err)
 	}
 	if len(backups) != 0 {
-		t.Errorf("Sin backups se esperaba lista vacía, se obtuvieron %d", len(backups))
+		t.Errorf("without backups: expected an empty list, got %d", len(backups))
 	}
 }
 
-// TestRestoreBackupWritesBytesToConfPath: RestoreBackup copia los bytes del
-// snapshot elegido sobre el overlay del tipo correspondiente (waf → waf-{slug}.conf).
+// TestRestoreBackupWritesBytesToConfPath: RestoreBackup copies the bytes of
+// the chosen snapshot over the overlay of the corresponding type (waf →
+// waf-{slug}.conf).
 func TestRestoreBackupWritesBytesToConfPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedDir := filepath.Join(tmpDir, "ui-managed")
 	backupDir := filepath.Join(tmpDir, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear managedDir: %v", err)
+		t.Fatalf("failed to create managedDir: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
@@ -260,69 +266,70 @@ func TestRestoreBackupWritesBytesToConfPath(t *testing.T) {
 	seedSnapshot(t, backupDir, "api.example.com", "2020-01-01T00-00-00Z.waf.conf", snapContent)
 
 	if err := files.RestoreBackup("api.example.com", "2020-01-01T00-00-00Z.waf.conf"); err != nil {
-		t.Fatalf("RestoreBackup falló: %v", err)
+		t.Fatalf("RestoreBackup failed: %v", err)
 	}
 
 	got, err := os.ReadFile(filepath.Join(managedDir, "waf-api_example_com.conf"))
 	if err != nil {
-		t.Fatalf("No se escribió el overlay waf-api_example_com.conf: %v", err)
+		t.Fatalf("the overlay waf-api_example_com.conf was not written: %v", err)
 	}
 	if string(got) != snapContent {
-		t.Errorf("El overlay debe contener exactamente los bytes del snapshot:\n%s", got)
+		t.Errorf("the overlay must contain exactly the snapshot bytes:\n%s", got)
 	}
 }
 
-// TestRestoreBackupRejectsUnsafeNames: nombres con separadores de ruta, tipos
-// desconocidos o sin el formato exacto deben rechazarse sin escribir nada.
+// TestRestoreBackupRejectsUnsafeNames: names with path separators, unknown
+// types or without the exact format must be rejected without writing
+// anything.
 func TestRestoreBackupRejectsUnsafeNames(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedDir := filepath.Join(tmpDir, "ui-managed")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear managedDir: %v", err)
+		t.Fatalf("failed to create managedDir: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups"))
 
 	for _, bad := range []string{
-		"",                                  // vacío
+		"",                                  // empty
 		"../evil.conf",                      // path traversal
-		"/etc/passwd",                       // ruta absoluta
-		"2020-01-01T00-00-00Z",              // sin extensión
-		"2020-01-01T00-00-00Z.unknown.conf", // tipo no soportado
-		"2020-01-01T00:00:00Z.waf.conf",     // formato ISO con ":" (no es el nombre de snapshot)
+		"/etc/passwd",                       // absolute path
+		"2020-01-01T00-00-00Z",              // missing extension
+		"2020-01-01T00-00-00Z.unknown.conf", // unsupported type
+		"2020-01-01T00:00:00Z.waf.conf",     // ISO format with ":" (not a snapshot name)
 	} {
 		if err := files.RestoreBackup("api.example.com", bad); err == nil {
-			t.Errorf("RestoreBackup(%q) debe rechazarse", bad)
+			t.Errorf("RestoreBackup(%q) must be rejected", bad)
 		}
 	}
 
-	// Ningún archivo debe haberse escrito con nombres inválidos.
+	// No file must have been written with invalid names.
 	if _, err := os.Stat(filepath.Join(managedDir, "waf-api_example_com.conf")); !os.IsNotExist(err) {
-		t.Errorf("No debe escribirse el overlay con nombres de snapshot inválidos")
+		t.Errorf("the overlay must not be written with invalid snapshot names")
 	}
 }
 
-// TestRestoreBackupMissingSnapshotFails: un nombre válido pero sin archivo
-// (borrado o inexistente) debe fallar con error, no escribirse nada.
+// TestRestoreBackupMissingSnapshotFails: a valid name but no file (deleted or
+// nonexistent) must fail with an error and write nothing.
 func TestRestoreBackupMissingSnapshotFails(t *testing.T) {
 	tmpDir := t.TempDir()
 	managedDir := filepath.Join(tmpDir, "ui-managed")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("Fallo al crear managedDir: %v", err)
+		t.Fatalf("failed to create managedDir: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups"))
 
 	if err := files.RestoreBackup("api.example.com", "2099-01-01T00-00-00Z.waf.conf"); err == nil {
-		t.Fatal("RestoreBackup de un snapshot inexistente debe fallar")
+		t.Fatal("RestoreBackup of a nonexistent snapshot must fail")
 	}
 	if _, err := os.Stat(filepath.Join(managedDir, "waf-api_example_com.conf")); !os.IsNotExist(err) {
-		t.Errorf("No debe escribirse el overlay si el snapshot no existe")
+		t.Errorf("the overlay must not be written if the snapshot does not exist")
 	}
 }
 
-// TestBackupTypeParsesValidNames: BackupType extrae el tipo de overlay de un
-// nombre de snapshot válido (los tres tipos gestionados).
+// TestBackupTypeParsesValidNames: BackupType extracts the overlay type of a
+// valid snapshot name (the three managed types).
 func TestBackupTypeParsesValidNames(t *testing.T) {
 	cases := []struct{ name, want string }{
 		{"2026-08-07T15-52-13Z.waf.conf", "waf"},
@@ -332,30 +339,30 @@ func TestBackupTypeParsesValidNames(t *testing.T) {
 	for _, tc := range cases {
 		got, err := files.BackupType(tc.name)
 		if err != nil {
-			t.Errorf("BackupType(%q) falló: %v", tc.name, err)
+			t.Errorf("BackupType(%q) failed: %v", tc.name, err)
 			continue
 		}
 		if got != tc.want {
-			t.Errorf("BackupType(%q) = %q; se esperaba %q", tc.name, got, tc.want)
+			t.Errorf("BackupType(%q) = %q; expected %q", tc.name, got, tc.want)
 		}
 	}
 }
 
-// TestBackupTypeRejectsUnsafeNames: nombres inseguros o malformados deben dar
-// error (nunca un tipo válido).
+// TestBackupTypeRejectsUnsafeNames: unsafe or malformed names must yield an
+// error (never a valid type).
 func TestBackupTypeRejectsUnsafeNames(t *testing.T) {
 	for _, bad := range []string{
-		"",                                  // vacío
+		"",                                  // empty
 		"../evil.conf",                      // path traversal
-		"etc/passwd",                        // subdirectorio relativo
-		"2020-01-01T00-00-00Z",              // sin extensión
-		"2020-01-01T00-00-00Z.waf",          // sin .conf
-		"2020-01-01T00-00-00Z.txt.conf",     // tipo desconocido
-		"2020-01-01T00:00:00Z.waf.conf",     // ISO con ":" (convención rota)
-		"2020-01-01T00-00-00Z.waf.conf.bak", // sufijo extra
+		"etc/passwd",                        // relative subdirectory
+		"2020-01-01T00-00-00Z",              // missing extension
+		"2020-01-01T00-00-00Z.waf",          // missing .conf
+		"2020-01-01T00-00-00Z.txt.conf",     // unknown type
+		"2020-01-01T00:00:00Z.waf.conf",     // ISO with ":" (broken convention)
+		"2020-01-01T00-00-00Z.waf.conf.bak", // extra suffix
 	} {
 		if _, err := files.BackupType(bad); err == nil {
-			t.Errorf("BackupType(%q) debe rechazarse", bad)
+			t.Errorf("BackupType(%q) must be rejected", bad)
 		}
 	}
 }

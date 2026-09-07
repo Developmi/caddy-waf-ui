@@ -1,12 +1,13 @@
-// Package ratelimit implementa el rate limiting de la UI con un token bucket
-// zero-dep (solo stdlib, sin golang.org/x/time/rate): single-process, sin
-// sharding (D3). Cubre RL-1 (login: por cliente + techo global) y RL-2 (/api/*
-// por RemoteAddr). La clave SIEMPRE es r.RemoteAddr verbatim: X-Forwarded-For
-// no se confía (no-goal del cambio security-parity-mitigation).
+// Package ratelimit implements the UI rate limiting with a zero-dep token
+// bucket (stdlib only, no golang.org/x/time/rate): single-process, no
+// sharding (D3). It covers RL-1 (login: per client + global ceiling) and
+// RL-2 (/api/* per RemoteAddr). The key is ALWAYS r.RemoteAddr verbatim:
+// X-Forwarded-For is not trusted (no-goal of the security-parity-mitigation
+// change).
 //
-// El diseño evita goroutines y ciclos de vida: el prune de clients idle es
-// lazy y amortizado dentro de Allow(), y los limitadores son globales de
-// proceso (se crean al primer uso del paquete).
+// The design avoids goroutines and lifecycles: the prune of idle clients is
+// lazy and amortized inside Allow(), and the limiters are process globals
+// (created on the first use of the package).
 package ratelimit
 
 import (
@@ -17,36 +18,37 @@ import (
 	"time"
 )
 
-// Constantes nombradas del diseño (D1/D2): los valores numéricos de las tasas
-// viven aquí, nunca inline en los call sites.
+// Named design constants (D1/D2): the numeric rate values live here, never
+// inline in the call sites.
 const (
-	// LoginPerClientPerMinute es la tasa de POST /login por cliente (5/min:
-	// 1 token cada 12s) y LoginPerClientBurst su burst (== tasa: estricto
-	// 5-y-luego-refill, RL-1/D1).
+	// LoginPerClientPerMinute is the rate of POST /login per client (5/min:
+	// 1 token every 12s) and LoginPerClientBurst its burst (== rate: strict
+	// 5-then-refill, RL-1/D1).
 	LoginPerClientPerMinute = 5
 	LoginPerClientBurst     = 5
 
-	// LoginGlobalPerMinute es el techo global de login compartido por TODOS
-	// los clients (60/min, 1 token/s) y LoginGlobalBurst su burst: acota el
-	// guessing distribuido sin auto-DoS de NATs/multi-dispositivo (RL-1/D1).
+	// LoginGlobalPerMinute is the global login ceiling shared by ALL clients
+	// (60/min, 1 token/s) and LoginGlobalBurst its burst: it bounds
+	// distributed guessing without self-DoS of NATs/multi-device setups
+	// (RL-1/D1).
 	LoginGlobalPerMinute = 60
 	LoginGlobalBurst     = 60
 
-	// APIPerMinute es la tasa sostenida de /api/* por RemoteAddr (120/min,
-	// nunca por debajo del piso de 60/min de la spec) y APIBurst su burst de
-	// ráfaga (RL-2/D2).
+	// APIPerMinute is the sustained /api/* rate per RemoteAddr (120/min,
+	// never below the 60/min floor of the spec) and APIBurst its burst rate
+	// (RL-2/D2).
 	APIPerMinute = 120
 	APIBurst     = 30
 
-	// ClientIdleTimeout es el tiempo de inactividad tras el cual el prune
-	// lazy elimina la entrada de un cliente del ClientLimiter (D3).
+	// ClientIdleTimeout is the inactivity time after which the lazy prune
+	// removes the entry of a client from the ClientLimiter (D3).
 	ClientIdleTimeout = 30 * time.Minute
 )
 
-// Bucket es un token bucket con refill continuo (perMinute tokens por minuto)
-// y capacidad == burst. El acceso es seguro para concurrencia (mutex). La
-// concesión y el refill sharen el reloj inyectable b.now para poder fijar
-// el tiempo en tests (white-box); en producción b.now es time.Now.
+// Bucket is a token bucket with continuous refill (perMinute tokens per
+// minute) and capacity == burst. Access is concurrency-safe (mutex). The
+// grant and the refill share the injectable clock b.now to be able to fix
+// the time in tests (white-box); in production b.now is time.Now.
 type Bucket struct {
 	mu        sync.Mutex
 	perMinute float64
@@ -56,14 +58,14 @@ type Bucket struct {
 	now       func() time.Time
 }
 
-// NewBucket construye un bucket con el reloj real. burst es la capacidad
-// máxima y la cantidad de concesiones inmediatas disponibles.
+// NewBucket builds a bucket with the real clock. burst is the maximum
+// capacity and the amount of immediate grants available.
 func NewBucket(perMinute float64, burst int) *Bucket {
 	return newBucket(perMinute, burst, time.Now)
 }
 
-// newBucket es el constructor con reloj inyectable (tests white-box y
-// ClientLimiter, que share su reloj con los buckets de cada cliente).
+// newBucket is the constructor with an injectable clock (white-box tests and
+// ClientLimiter, which shares its clock with the buckets of each client).
 func newBucket(perMinute float64, burst int, now func() time.Time) *Bucket {
 	return &Bucket{
 		perMinute: perMinute,
@@ -74,20 +76,20 @@ func newBucket(perMinute float64, burst int, now func() time.Time) *Bucket {
 	}
 }
 
-// Allow concede un token si hay ≥1 disponible (refill aplicado hasta el
-// instante actual); si no, devuelve el tiempo que falta para acumular ≥1
-// token, redondeado al segundo superior (Retry-After).
+// Allow grants a token if ≥1 is available (refill applied up to the current
+// instant); otherwise it returns the time left to accumulate ≥1 token,
+// rounded up to the next second (Retry-After).
 func (b *Bucket) Allow() (ok bool, retryAfter time.Duration) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.allowAt(b.now())
 }
 
-// allowAt evalúa la concesión en el instante now: aplica el refill continuo
-// proporcional al tiempo transcurrido desde la última evaluación y, si hay
-// ≥1 token, lo consume. El retry se mide en minutos (perMinute es una tasa
-// por minuto) para no acumular drift en los múltiplos exactos (p.ej. 12s →
-// 1 token en un bucket 5/min).
+// allowAt evaluates the grant at instant now: it applies the continuous
+// refill proportional to the time elapsed since the last evaluation and, if
+// there is ≥1 token, consumes it. The retry is measured in minutes
+// (perMinute is a per-minute rate) to avoid accumulating drift at exact
+// multiples (e.g. 12s → 1 token in a 5/min bucket).
 func (b *Bucket) allowAt(now time.Time) (ok bool, retryAfter time.Duration) {
 	if elapsed := now.Sub(b.last); elapsed > 0 {
 		b.tokens += elapsed.Minutes() * b.perMinute
@@ -101,13 +103,13 @@ func (b *Bucket) allowAt(now time.Time) (ok bool, retryAfter time.Duration) {
 		return true, 0
 	}
 	if b.perMinute <= 0 {
-		// Sin refill (defensivo: los call sites usan constantes > 0): un
-		// retry de una hora es el tope pragmático para no devolver infinito.
+		// No refill (defensive: the call sites use constants > 0): a retry
+		// of one hour is the pragmatic cap to avoid returning infinity.
 		return false, time.Hour
 	}
-	// Segundos enteros hasta acumular el token faltante, con una tolerancia
-	// mínima que neutraliza el redondeo del punto flotante en los bordes
-	// exactos (ceil(11.999999999999998) debe ser 12, no 11).
+	// Whole seconds until the missing token accumulates, with a minimum
+	// tolerance that neutralizes the floating-point rounding at exact edges
+	// (ceil(11.999999999999998) must be 12, not 11).
 	need := 1 - b.tokens
 	seconds := need / (b.perMinute / 60)
 	retry := int(math.Ceil(seconds - 1e-9))
@@ -117,17 +119,17 @@ func (b *Bucket) allowAt(now time.Time) (ok bool, retryAfter time.Duration) {
 	return false, time.Duration(retry) * time.Second
 }
 
-// clientEntry agrupa el bucket de un cliente con su última actividad
-// (lastSeen), que el prune lazy usa para decidir si la entrada está idle.
+// clientEntry groups the bucket of a client with its last activity
+// (lastSeen), which the lazy prune uses to decide whether the entry is idle.
 type clientEntry struct {
 	bucket   *Bucket
 	lastSeen time.Time
 }
 
-// ClientLimiter mantiene un Bucket por clave (RemoteAddr del cliente). El
-// mapa crece con los clients vistos y se poda de forma lazy y amortizada
-// dentro de Allow: el barrido completo corre como mucho una vez por
-// ClientIdleTimeout (no por request) y sin goroutines ni ciclo de vida.
+// ClientLimiter keeps one Bucket per key (RemoteAddr of the client). The map
+// grows with the seen clients and is pruned lazily and amortized inside
+// Allow: the full sweep runs at most once per ClientIdleTimeout (not per
+// request) and without goroutines or lifecycle.
 type ClientLimiter struct {
 	mu        sync.Mutex
 	perMinute float64
@@ -137,13 +139,13 @@ type ClientLimiter struct {
 	lastPrune time.Time
 }
 
-// NewClient construye un ClientLimiter con el reloj real.
+// NewClient builds a ClientLimiter with the real clock.
 func NewClient(perMinute float64, burst int) *ClientLimiter {
 	return newClient(perMinute, burst, time.Now)
 }
 
-// newClient es el constructor con reloj inyectable (tests white-box). Los
-// buckets de los clients creados en Allow sharen este mismo reloj.
+// newClient is the constructor with an injectable clock (white-box tests).
+// The client buckets created in Allow share this same clock.
 func newClient(perMinute float64, burst int, now func() time.Time) *ClientLimiter {
 	return &ClientLimiter{
 		perMinute: perMinute,
@@ -153,10 +155,10 @@ func newClient(perMinute float64, burst int, now func() time.Time) *ClientLimite
 	}
 }
 
-// Allow concede (o no) un token al bucket de la clave, creándolo si es la
-// primera vez. Antes de evaluar corre el prune lazy amortizado: elimina los
-// clients idle > ClientIdleTimeout. Toda llamada cuenta como actividad de la
-// clave (lastSeen se actualiza también en las denegaciones).
+// Allow grants (or not) a token to the bucket of the key, creating it on the
+// first time. Before evaluating, the amortized lazy prune runs: it removes
+// the idle clients > ClientIdleTimeout. Every call counts as activity of the
+// key (lastSeen is updated also on denials).
 func (c *ClientLimiter) Allow(key string) (ok bool, retryAfter time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -180,26 +182,26 @@ func (c *ClientLimiter) Allow(key string) (ok bool, retryAfter time.Duration) {
 	return entry.bucket.Allow()
 }
 
-// limitadores compartidos del proceso (single-process, D3). El techo global
-// de login es un Bucket único; los demás son por RemoteAddr.
+// process-wide shared limiters (single-process, D3). The global login
+// ceiling is a single Bucket; the rest are per RemoteAddr.
 var (
 	loginClient = NewClient(LoginPerClientPerMinute, LoginPerClientBurst)
 	loginGlobal = NewBucket(LoginGlobalPerMinute, LoginGlobalBurst)
 	apiClient   = NewClient(APIPerMinute, APIBurst)
 )
 
-// tooManyRequests responde 429 con Retry-After y un cuerpo plano, sin
-// Set-Cookie: el short-circuit ocurre ANTES de auth/CSRF/RequestLogger, así
-// un 429 nunca fija cookie ni inunda el log de ui_request (D4).
+// tooManyRequests responds 429 with Retry-After and a plain body, without
+// Set-Cookie: the short-circuit happens BEFORE auth/CSRF/RequestLogger, so a
+// 429 never sets a cookie nor floods the ui_request log (D4).
 func tooManyRequests(w http.ResponseWriter, retryAfter time.Duration) {
 	w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter/time.Second)))
-	http.Error(w, "demasiadas peticiones, reintente más tarde", http.StatusTooManyRequests)
+	http.Error(w, "too many requests, retry later", http.StatusTooManyRequests)
 }
 
-// Login envuelve el mux público de login limitando SOLO el POST (RL-1): los
-// métodos seguros (GET /login) pasan sin consumir tokens, así la página de
-// login nunca queda bloqueada por el límite de intentos (RL-3/D4). El orden
-// es por-cliente y luego techo global.
+// Login wraps the public login mux limiting ONLY the POST (RL-1): safe
+// methods (GET /login) pass without consuming tokens, so the login page is
+// never blocked by the attempt limit (RL-3/D4). The order is per-client and
+// then the global ceiling.
 func Login(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -218,9 +220,9 @@ func Login(next http.Handler) http.Handler {
 	})
 }
 
-// API limita /api/* por RemoteAddr (RL-2/D2). Se monta FUERA de
-// auth.Middleware (D4): las probes sin token consumen presupuesto y el 429
-// corta antes de auth/CSRF/RequestLogger. Aplica a todos los métodos.
+// API limits /api/* per RemoteAddr (RL-2/D2). It is mounted OUTSIDE
+// auth.Middleware (D4): token-less probes consume budget and the 429 cuts
+// before auth/CSRF/RequestLogger. It applies to all methods.
 func API(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ok, retryAfter := apiClient.Allow(r.RemoteAddr); !ok {

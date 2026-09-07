@@ -21,7 +21,7 @@ func TestGenerateSnippet(t *testing.T) {
 		fragments []string
 	}{
 		{
-			name: "cidr válido",
+			name: "valid CIDR",
 			rules: iprules.IPRules{
 				Denylist: []string{"10.0.0.0/8"},
 			},
@@ -31,7 +31,7 @@ func TestGenerateSnippet(t *testing.T) {
 			},
 		},
 		{
-			name: "ip suelta se normaliza a /32",
+			name: "bare IP is normalized to /32",
 			rules: iprules.IPRules{
 				Denylist: []string{"1.2.3.4"},
 			},
@@ -41,7 +41,7 @@ func TestGenerateSnippet(t *testing.T) {
 			},
 		},
 		{
-			name: "ipv6 válido",
+			name: "valid IPv6",
 			rules: iprules.IPRules{
 				Denylist: []string{"::1/128"},
 			},
@@ -51,28 +51,28 @@ func TestGenerateSnippet(t *testing.T) {
 			},
 		},
 		{
-			name: "string con salto de línea",
+			name: "string with newline",
 			rules: iprules.IPRules{
 				Denylist: []string{"1.2.3.4}\nabort @foo"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "string con llave de cierre",
+			name: "string with closing brace",
 			rules: iprules.IPRules{
 				Denylist: []string{"1.2.3.4}"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "basura",
+			name: "garbage",
 			rules: iprules.IPRules{
 				Denylist: []string{"not-an-ip"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "allowlist también se normaliza",
+			name: "allowlist is normalized too",
 			rules: iprules.IPRules{
 				Allowlist: []string{"203.0.113.5"},
 			},
@@ -89,20 +89,20 @@ func TestGenerateSnippet(t *testing.T) {
 
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("GenerateSnippet debería fallar con %+v, pero no devolvió error", tt.rules)
+					t.Fatalf("GenerateSnippet should fail with %+v, but returned no error", tt.rules)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Fatalf("GenerateSnippet falló inesperadamente: %v", err)
+				t.Fatalf("GenerateSnippet failed unexpectedly: %v", err)
 			}
 
 			result := string(resultBytes)
 
 			for _, fragment := range tt.fragments {
 				if !strings.Contains(result, fragment) {
-					t.Errorf("El bloque generado no contiene el fragmento esperado: %q\nBloque:\n%s", fragment, result)
+					t.Errorf("the generated block does not contain the expected fragment: %q\nBlock:\n%s", fragment, result)
 				}
 			}
 		})

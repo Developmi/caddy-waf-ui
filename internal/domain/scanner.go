@@ -8,30 +8,30 @@ import (
 	"strings"
 )
 
-// Scanner se encarga de leer el sistema de archivos para descubrir dominios[cite: 1].
-// El registry en memoria fue eliminado (hallazgo J5-6): la abstracción se
-// creaba y descartaba por request sin aportar estado compartido; Scan devuelve
-// los sitios directamente y la frescura se mantiene por lectura por request
-// (decisión D2).
+// Scanner reads the filesystem to discover domains[cite: 1].
+// The in-memory registry was removed (finding J5-6): the abstraction was
+// created and discarded per request without providing shared state; Scan
+// returns the sites directly and freshness is kept by reading per request
+// (decision D2).
 type Scanner struct {
 	managedDir string
 }
 
-// NewScanner crea una nueva instancia del escáner.
+// NewScanner creates a new scanner instance.
 func NewScanner(managedDir string) *Scanner {
 	return &Scanner{managedDir: managedDir}
 }
 
-// Scan lee el directorio ui-managed y devuelve los sitios encontrados.
-// Los sitios se registran con el dominio REAL leído de la cabecera del overlay
-// ("# domain: | mode: | updated:", contrato compartido en overlay.go), no con
-// el slug derivado del nombre de archivo. Los archivos sin cabecera válida se
-// omiten con una advertencia y el scan continúa.
+// Scan reads the ui-managed directory and returns the sites found.
+// Sites are registered with the REAL domain read from the overlay header
+// ("# domain: | mode: | updated:", shared contract in overlay.go), not with
+// the slug derived from the file name. Files without a valid header are
+// skipped with a warning and the scan continues.
 func (s *Scanner) Scan() ([]*Site, error) {
 	entries, err := os.ReadDir(s.managedDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Si el directorio no existe, no hay nada que escanear
+			// If the directory does not exist, there is nothing to scan
 			return nil, nil
 		}
 		return nil, err
@@ -44,14 +44,14 @@ func (s *Scanner) Scan() ([]*Site, error) {
 		}
 
 		name := entry.Name()
-		// Buscamos archivos que sigan el patrón waf-{slug}.conf[cite: 1]
+		// Look for files matching the waf-{slug}.conf pattern[cite: 1]
 		if !strings.HasPrefix(name, "waf-") || !strings.HasSuffix(name, ".conf") {
 			continue
 		}
 
 		site, err := parseSiteHeader(filepath.Join(s.managedDir, name), name)
 		if err != nil {
-			slog.Warn("overlay sin cabecera valida, omitido", "archivo", name, "error", err)
+			slog.Warn("overlay without a valid header, skipped", "archivo", name, "error", err)
 			continue
 		}
 
@@ -61,14 +61,14 @@ func (s *Scanner) Scan() ([]*Site, error) {
 	return sites, nil
 }
 
-// parseSiteHeader lee la cabecera "# domain: <dominio> | mode: <modo> |
-// updated: <RFC3339>" del archivo de overlay y construye el Site. Devuelve
-// error si la cabecera no existe o no aporta un dominio: el archivo se omite
-// (skip + warn) pero no aborta el scan.
+// parseSiteHeader reads the "# domain: <domain> | mode: <mode> |
+// updated: <RFC3339>" header of the overlay file and builds the Site.
+// Returns an error if the header is missing or provides no domain: the file
+// is skipped (skip + warn) but the scan is not aborted.
 func parseSiteHeader(path, name string) (*Site, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("error leyendo overlay: %w", err)
+		return nil, fmt.Errorf("error reading overlay: %w", err)
 	}
 
 	var headerLine string
@@ -80,7 +80,7 @@ func parseSiteHeader(path, name string) (*Site, error) {
 		}
 	}
 	if headerLine == "" {
-		return nil, fmt.Errorf("cabecera '# domain:' no encontrada")
+		return nil, fmt.Errorf("header '# domain:' not found")
 	}
 
 	info, err := ParseHeader(headerLine)
@@ -90,13 +90,13 @@ func parseSiteHeader(path, name string) (*Site, error) {
 
 	site := &Site{
 		Domain: info.Domain,
-		Mode:   ModeDetectionOnly, // Valor por defecto si la cabecera no define modo
+		Mode:   ModeDetectionOnly, // Default value when the header does not define a mode
 	}
 
-	// Modo presente pero desconocido: se mantiene el default no-bloqueante (el
-	// skip ocultaría el dominio y rompería forward-compat con modos futuros),
-	// pero el flag Degraded advierte que la UI NO refleja el estado real
-	// cargado en Caddy (W1 verify).
+	// Mode present but unknown: the non-blocking default is kept (skipping
+	// would hide the domain and break forward-compat with future modes), but
+	// the Degraded flag warns that the UI does NOT reflect the real state
+	// loaded in Caddy (W1 verify).
 	if !info.HasMode {
 		site.Mode = ModeDetectionOnly
 	} else {
@@ -105,14 +105,14 @@ func parseSiteHeader(path, name string) (*Site, error) {
 			site.Mode = info.Mode
 		default:
 			site.Degraded = true
-			slog.Warn("modo desconocido en cabecera, se usa DetectionOnly (sitio degradado)", "archivo", name, "mode", info.Mode)
+			slog.Warn("unknown mode in header, using DetectionOnly (degraded site)", "archivo", name, "mode", info.Mode)
 		}
 	}
 
 	if info.HasUpdated {
 		site.Updated = info.Updated
 	} else if info.UpdatedRaw != "" {
-		slog.Warn("timestamp 'updated' invalido en cabecera", "archivo", name, "updated", info.UpdatedRaw)
+		slog.Warn("invalid 'updated' timestamp in header", "archivo", name, "updated", info.UpdatedRaw)
 	}
 
 	return site, nil
