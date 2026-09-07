@@ -52,6 +52,15 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", securityPolicy)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		// Strict-Transport-Security (SH-2): la UI no termina TLS, así que el
+		// header solo aplica cuando el request llegó por HTTPS a través de un
+		// proxy TLS confiable. Caddy agrega X-Forwarded-Proto: https en
+		// reverse_proxy; EqualFold hace la comparación case-insensitive.
+		// Valor fijo max-age=31536000 (1 año, OWASP): sin includeSubDomains ni
+		// preload (no-goals). En HTTP plano el header es inerte (RFC 6797).
+		if strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

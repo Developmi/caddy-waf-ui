@@ -68,3 +68,49 @@ func TestSecurityHeadersAppliesCSP(t *testing.T) {
 		}
 	}
 }
+
+// TestSecurityHeadersHSTS (SH-2): Strict-Transport-Security debe emitirse SOLO
+// cuando X-Forwarded-Proto es "https" (comparación case-insensitive: Caddy lo
+// agrega como "https" en reverse_proxy cuando el request original entró por
+// TLS). El valor debe ser exactamente "max-age=31536000" (1 año, OWASP): sin
+// includeSubDomains ni preload (no-goals del cambio). Sin XFP o con un proto
+// distinto de https, la cabecera debe estar ausente (RFC 6797: es inerte en
+// HTTP plano).
+func TestSecurityHeadersHSTS(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := SecurityHeaders(inner)
+
+	tests := []struct {
+		name string
+		xfp  string // valor de X-Forwarded-Proto; "" = cabecera ausente
+		want string // valor esperado de Strict-Transport-Security; "" = ausente
+	}{
+		{"proxy https", "https", "max-age=31536000"},
+		{"proxy HTTPS mayusculas", "HTTPS", "max-age=31536000"},
+		{"sin X-Forwarded-Proto", "", ""},
+		{"proxy http", "http", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.xfp != "" {
+				req.Header.Set("X-Forwarded-Proto", tt.xfp)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			got := rec.Header().Get("Strict-Transport-Security")
+			if tt.want == "" {
+				if got != "" {
+					t.Errorf("X-Forwarded-Proto %q: se esperaba ausencia de Strict-Transport-Security, se obtuvo %q", tt.xfp, got)
+				}
+				return
+			}
+			if got != tt.want {
+				t.Errorf("X-Forwarded-Proto %q: se esperaba Strict-Transport-Security exacto %q, se obtuvo %q", tt.xfp, tt.want, got)
+			}
+		})
+	}
+}
