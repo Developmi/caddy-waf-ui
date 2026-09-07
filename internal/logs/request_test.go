@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestRequestLoggerEmitsExactlyOneUIRequest verifica el escenario AU-12:
-// un request autenticado que completa produce exactamente una entrada
-// ui_request con method, path, remote_ip y status, y la respuesta llega
-// intacta al cliente (passthrough de body y status).
+// TestRequestLoggerEmitsExactlyOneUIRequest verifies the AU-12 scenario: an
+// authenticated request that completes produces exactly one ui_request entry
+// with method, path, remote_ip and status, and the response reaches the
+// client intact (body and status passthrough).
 func TestRequestLoggerEmitsExactlyOneUIRequest(t *testing.T) {
 	logs := captureLogs(t)
 
@@ -24,36 +24,36 @@ func TestRequestLoggerEmitsExactlyOneUIRequest(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/sites/example.com")
 	if err != nil {
-		t.Fatalf("GET falló: %v", err)
+		t.Fatalf("GET failed: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Passthrough: el cliente recibe el status y el body del handler interno.
+	// Passthrough: the client receives the status and body of the inner handler.
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("passthrough: se esperaba 200, se obtuvo %d", resp.StatusCode)
+		t.Errorf("passthrough: expected 200, got %d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("leyendo body: %v", err)
+		t.Fatalf("reading body: %v", err)
 	}
 	if string(body) != "ok" {
-		t.Errorf("passthrough: se esperaba body %q, se obtuvo %q", "ok", string(body))
+		t.Errorf("passthrough: expected body %q, got %q", "ok", string(body))
 	}
 
 	out := logs.String()
 	if got := strings.Count(out, "ui_request"); got != 1 {
-		t.Errorf("se esperaba exactamente 1 entrada ui_request, se obtuvieron %d", got)
+		t.Errorf("expected exactly 1 ui_request entry, got %d", got)
 	}
 	for _, want := range []string{"method=GET", "path=/sites/example.com", "remote_ip=127.0.0.1", "status=200"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("la entrada ui_request debe contener %s, salida: %s", want, out)
+			t.Errorf("the ui_request entry must contain %s, output: %s", want, out)
 		}
 	}
 }
 
-// TestRequestLoggerRecordsNon2xxStatus verifica el escenario AU-12 de status
-// no-2xx: un 404 del handler interno se registra con su status real y el
-// cliente también recibe el 404 (passthrough).
+// TestRequestLoggerRecordsNon2xxStatus verifies the AU-12 scenario of a
+// non-2xx status: a 404 from the inner handler is recorded with its real
+// status and the client also receives the 404 (passthrough).
 func TestRequestLoggerRecordsNon2xxStatus(t *testing.T) {
 	logs := captureLogs(t)
 
@@ -65,22 +65,22 @@ func TestRequestLoggerRecordsNon2xxStatus(t *testing.T) {
 
 	resp, err := http.Get(srv.URL + "/missing")
 	if err != nil {
-		t.Fatalf("GET falló: %v", err)
+		t.Fatalf("GET failed: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("passthrough: se esperaba 404, se obtuvo %d", resp.StatusCode)
+		t.Errorf("passthrough: expected 404, got %d", resp.StatusCode)
 	}
 
 	out := logs.String()
 	if got := strings.Count(out, "ui_request"); got != 1 {
-		t.Errorf("se esperaba exactamente 1 entrada ui_request, se obtuvieron %d", got)
+		t.Errorf("expected exactly 1 ui_request entry, got %d", got)
 	}
 	if !strings.Contains(out, "status=404") {
-		t.Errorf("el status real (404) debe registrarse, salida: %s", out)
+		t.Errorf("the real status (404) must be recorded, output: %s", out)
 	}
 	if !strings.Contains(out, "path=/missing") {
-		t.Errorf("la entrada debe registrar el path real, salida: %s", out)
+		t.Errorf("the entry must record the real path, output: %s", out)
 	}
 }

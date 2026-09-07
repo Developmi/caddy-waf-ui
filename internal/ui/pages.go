@@ -21,16 +21,16 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/waf"
 )
 
-// managedDir devuelve el directorio de overlays gestionados. Centralizado en
-// config (hallazgo J5-3): la lectura de entorno vivía triplicada en
-// internal/service, internal/files y este paquete.
+// managedDir returns the managed overlays directory. Centralized in config
+// (finding J5-3): the environment read used to live triplicated in
+// internal/service, internal/files and this package.
 func managedDir() string {
 	return config.ManagedDir()
 }
 
-// crsRule describe una entrada del catálogo fijo de reglas CRS con falsos
-// positivos conocidos. El catálogo está hardcodeado (6 reglas) y sin
-// simulate-attack ni AI (eliminados del producto).
+// crsRule describes an entry of the fixed CRS rules catalog with known false
+// positives. The catalog is hardcoded (6 rules) and without simulate-attack
+// or AI (removed from the product).
 type crsRule struct {
 	RuleID      string
 	Category    string
@@ -38,8 +38,8 @@ type crsRule struct {
 	Description string
 }
 
-// crsCatalog es el catálogo de reglas CRS que la UI ofrece como exclusiones
-// de un clic, con su descripción pública (UI copy en inglés).
+// crsCatalog is the catalog of CRS rules that the UI offers as one-click
+// exclusions, with their public description (UI copy in English).
 var crsCatalog = []crsRule{
 	{RuleID: "942100", Category: "SQLi", Name: "SQL Injection Detected via libinjection", Description: "Detects classic SQL injection payloads in request values."},
 	{RuleID: "941100", Category: "XSS", Name: "XSS Attack Detected via libinjection", Description: "Detects cross-site scripting payloads in request values."},
@@ -49,10 +49,10 @@ var crsCatalog = []crsRule{
 	{RuleID: "942200", Category: "SQLi", Name: "SQL Injection: MySQL Comment/Space Obfuscation", Description: "Detects MySQL comment/space obfuscated injection attempts."},
 }
 
-// pageData es el modelo de datos común a todas las páginas SSR. Cada
-// plantilla consume solo los campos que necesita; las vistas cuyos datos
-// provienen de fases posteriores (logs, snapshots) llegan como estado vacío
-// honesto con el shape ya definido en el diseño (AuditEntry, BackupInfo).
+// pageData is the data model common to all SSR pages. Each template consumes
+// only the fields it needs; the views whose data comes from later phases
+// (logs, snapshots) arrive as an honest empty state with the shape already
+// defined in the design (AuditEntry, BackupInfo).
 type pageData struct {
 	ActiveTab        string
 	Flash            string
@@ -83,8 +83,8 @@ type pageData struct {
 	Readback         caddy.ReadbackState
 }
 
-// flashMessage traduce la clave ?flash= a un mensaje visible (UI copy en
-// inglés; los mensajes HTTP fuera del HTML siguen en español por convención).
+// flashMessage translates the ?flash= key to a visible message (English UI
+// copy; the keys success/error/invalid_login/logged_out are machine keys).
 func flashMessage(key string) string {
 	switch key {
 	case "success":
@@ -100,9 +100,10 @@ func flashMessage(key string) string {
 	}
 }
 
-// flashType mapea la clave del flash al tipo visual del toast (fix J3-1):
-// error → variante roja con role="alert" y aria-live="assertive"; el resto
-// se presenta como éxito/info verde con role="status" y aria-live="polite".
+// flashType maps the flash key to the visual type of the toast (fix J3-1):
+// error → red variant with role="alert" and aria-live="assertive"; the rest
+// is presented as a green success/info with role="status" and
+// aria-live="polite".
 func flashType(key string) string {
 	if key == "error" {
 		return "error"
@@ -110,13 +111,13 @@ func flashType(key string) string {
 	return "success"
 }
 
-// flashCookie transporta el flash entre el redirect de consumo (one-shot) y
-// el render de la página: la URL queda limpia y un refresh no re-muestra el
-// toast viejo. La cookie es efímera (60s), HttpOnly + SameSite=Lax.
+// flashCookie carries the flash between the consuming redirect (one-shot) and
+// the page render: the URL stays clean and a refresh does not re-show the old
+// toast. The cookie is ephemeral (60s), HttpOnly + SameSite=Lax.
 const flashCookieName = "ui_flash"
 
-// setFlashCookie fija la cookie efímera del flash para el hop de consumo
-// (misma convención de flags que la cookie de sesión: HttpOnly + Secure).
+// setFlashCookie sets the ephemeral flash cookie for the consuming hop (same
+// flag convention as the session cookie: HttpOnly + Secure).
 func setFlashCookie(w http.ResponseWriter, key string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     flashCookieName,
@@ -129,8 +130,8 @@ func setFlashCookie(w http.ResponseWriter, key string) {
 	})
 }
 
-// takeFlashCookie lee la cookie del flash y la borra (one-shot: se consume en
-// el primer render; un refresh posterior no la re-muestra).
+// takeFlashCookie reads the flash cookie and deletes it (one-shot: it is
+// consumed on the first render; a later refresh does not re-show it).
 func takeFlashCookie(w http.ResponseWriter, r *http.Request) (string, bool) {
 	cookie, err := r.Cookie(flashCookieName)
 	if err != nil {
@@ -148,10 +149,10 @@ func takeFlashCookie(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return cookie.Value, true
 }
 
-// cleanURL devuelve la misma ruta sin el parámetro ?flash= (one-shot: el
-// toast se consume con un redirect limpio; la cookie transporta el mensaje).
-// Preserva tab/domain/search/actionFilter/page para que el contexto de la
-// vista sobreviva al hop.
+// cleanURL returns the same path without the ?flash= parameter (one-shot:
+// the toast is consumed with a clean redirect; the cookie carries the
+// message). It preserves tab/domain/search/actionFilter/page so the context
+// of the view survives the hop.
 func cleanURL(q url.Values) string {
 	clean := url.Values{}
 	for _, key := range []string{"tab", "domain", "search", "actionFilter", "page"} {
@@ -165,22 +166,23 @@ func cleanURL(q url.Values) string {
 	return "/?" + clean.Encode()
 }
 
-// scanSites escanea los sitios descubiertos en ui-managed (scanner, D2:
-// lectura por request) y los devuelve ordenados por dominio. El Registry en
-// memoria fue eliminado (hallazgo J5-6): la abstracción se creaba y
-// descartaba por request sin aportar estado compartido.
+// scanSites scans the sites discovered in ui-managed (scanner, D2: read per
+// request) and returns them sorted by domain. The in-memory Registry was
+// removed (finding J5-6): the abstraction was created and discarded per
+// request without providing shared state.
 func scanSites() []*domain.Site {
 	scanner := domain.NewScanner(managedDir())
 	sites, err := scanner.Scan()
 	if err != nil {
-		slog.Warn("error escaneando overlays", "error", err)
+		slog.Warn("error scanning overlays", "error", err)
 	}
 	sort.Slice(sites, func(i, j int) bool { return sites[i].Domain < sites[j].Domain })
 	return sites
 }
 
-// findSite ubica el sitio seleccionado por ?domain=; sin match (o sin sitios)
-// usa el primero de la lista para que las vistas con selector no queden vacías.
+// findSite locates the site selected by ?domain=; without a match (or without
+// sites) it uses the first one of the list so the views with a selector do
+// not stay empty.
 func findSite(sites []*domain.Site, domainName string) *domain.Site {
 	for _, site := range sites {
 		if site.Domain == domainName {
@@ -193,22 +195,22 @@ func findSite(sites []*domain.Site, domainName string) *domain.Site {
 	return nil
 }
 
-// readOverlay devuelve el contenido actual de un overlay ("" si no existe).
-// Es el estado desplegado real, la fuente de verdad para los previews.
+// readOverlay returns the current content of an overlay ("" if it does not
+// exist). It is the real deployed state, the source of truth for the previews.
 func readOverlay(path string) string {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			slog.Warn("error leyendo overlay", "path", path, "error", err)
+			slog.Warn("error reading overlay", "path", path, "error", err)
 		}
 		return ""
 	}
 	return string(content)
 }
 
-// countOverlays recorre los overlays de exclusiones y reglas IP de TODOS los
-// dominios para las métricas del overview (las vistas por dominio usan los
-// parsers de overlay.go).
+// countOverlays walks the exclusions and IP rules overlays of ALL the domains
+// for the overview metrics (the per-domain views use the parsers of
+// overlay.go).
 func countOverlays() (exclusions, ipRules, deny, allow int) {
 	entries, err := os.ReadDir(managedDir())
 	if err != nil {
@@ -236,8 +238,9 @@ func countOverlays() (exclusions, ipRules, deny, allow int) {
 	return exclusions, ipRules, deny, allow
 }
 
-// csrfOrEmpty deriva el token CSRF para los formularios; si el token no está
-// configurado devuelve "" (el middleware de sesión ya bloquea todo acceso).
+// csrfOrEmpty derives the CSRF token for the forms; if the token is not
+// configured it returns "" (the session middleware already blocks all
+// access).
 func csrfOrEmpty() string {
 	token, err := auth.CSRFValue()
 	if err != nil {
@@ -246,9 +249,9 @@ func csrfOrEmpty() string {
 	return token
 }
 
-// logPageURL arma la URL de una página del explorador de logs preservando los
-// filtros activos (tab/search/actionFilter). page < 1 devuelve "" para que el
-// template no renderice el enlace (fuera de rango).
+// logPageURL builds the URL of a log explorer page preserving the active
+// filters (tab/search/actionFilter). page < 1 returns "" so the template does
+// not render the link (out of range).
 func logPageURL(q url.Values, page int) string {
 	if page < 1 {
 		return ""
@@ -265,9 +268,9 @@ func logPageURL(q url.Values, page int) string {
 	return "/?" + query.Encode()
 }
 
-// loadLogs lee la página solicitada del audit log de Coraza (D7) con los
-// filtros de la query string. Si el archivo aún no existe (primer arranque)
-// se registra un warn y la tabla queda en estado vacío honesto.
+// loadLogs reads the requested page of the Coraza audit log (D7) with the
+// query string filters. If the file does not exist yet (first start) a warn
+// is logged and the table stays in an honest empty state.
 func loadLogs(q url.Values) (logs.Page, bool) {
 	page, _ := strconv.Atoi(q.Get("page"))
 	result, err := logs.Read(logs.AuditLogPath(), logs.Options{
@@ -276,15 +279,15 @@ func loadLogs(q url.Values) (logs.Page, bool) {
 		Page:   page,
 	})
 	if err != nil {
-		slog.Warn("no se pudo leer el audit log", "path", logs.AuditLogPath(), "error", err)
+		slog.Warn("failed to read the audit log", "path", logs.AuditLogPath(), "error", err)
 		return logs.Page{}, false
 	}
 	return result, true
 }
 
-// buildPageData arma el modelo de datos de la página activa. La vista logs
-// se alimenta del audit log real (Fase 3); rollback sigue en estado vacío
-// honesto (lectura en Fase 4).
+// buildPageData builds the data model of the active page. The logs view is
+// fed by the real audit log (Phase 3); rollback stays in an honest empty
+// state (read in Phase 4).
 func buildPageData(r *http.Request, tab string, sites []*domain.Site) pageData {
 	q := r.URL.Query()
 	data := pageData{
@@ -324,12 +327,13 @@ func buildPageData(r *http.Request, tab string, sites []*domain.Site) pageData {
 		}
 	}
 
-	// El tab rollback se alimenta de los snapshots REALES del dominio (Fase 4);
-	// sin backups (o directorio inexistente) queda el estado vacío honesto.
+	// The rollback tab is fed by the REAL snapshots of the domain (Phase 4);
+	// without backups (or with a nonexistent directory) the honest empty
+	// state remains.
 	if tab == "rollback" && data.CurrentSite != nil {
 		snapshots, err := files.ListBackups(data.CurrentSite.Domain)
 		if err != nil {
-			slog.Warn("no se pudieron listar los snapshots", "domain", data.CurrentSite.Domain, "error", err)
+			slog.Warn("failed to list snapshots", "domain", data.CurrentSite.Domain, "error", err)
 		} else {
 			data.Snapshots = snapshots
 		}
@@ -348,28 +352,28 @@ func buildPageData(r *http.Request, tab string, sites []*domain.Site) pageData {
 	return data
 }
 
-// executePage ejecuta la plantilla base de la página indicada (todas las
-// plantillas definen el bloque "base"; las páginas de contenido, además,
-// definen "content").
+// executePage executes the base template of the given page (all the
+// templates define the "base" block; the content pages additionally define
+// "content").
 func executePage(w http.ResponseWriter, page string, data pageData) error {
 	tmpl, ok := templates[page]
 	if !ok {
-		return fmt.Errorf("plantilla desconocida: %s", page)
+		return fmt.Errorf("unknown template: %s", page)
 	}
 	return tmpl.ExecuteTemplate(w, "base", data)
 }
 
-// HandleIndex renderiza la página activa según ?tab (SSR; spec web-ui:
-// página renderiza 200, sin errores de template, escapado automático).
+// HandleIndex renders the active page by ?tab (SSR; web-ui spec: the page
+// renders 200, without template errors, with automatic escaping).
 func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	tab := r.URL.Query().Get("tab")
 	if tab == "" {
 		tab = "overview"
 	}
 
-	// Flash one-shot (fix J3-12): el ?flash= del PRG se consume con un
-	// redirect limpio que transporta el mensaje en una cookie efímera; un
-	// refresh de la URL limpia no re-muestra el toast.
+	// One-shot flash (fix J3-12): the ?flash= of the PRG is consumed with a
+	// clean redirect that carries the message in an ephemeral cookie; a
+	// refresh of the clean URL does not re-show the toast.
 	if key := r.URL.Query().Get("flash"); key != "" {
 		setFlashCookie(w, key)
 		http.Redirect(w, r, cleanURL(r.URL.Query()), http.StatusFound)
@@ -382,14 +386,14 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 		data.FlashType = flashType(key)
 	}
 	if err := executePage(w, tab, data); err != nil {
-		slog.Error("error renderizando página", "tab", tab, "error", err)
-		http.Error(w, "Error interno renderizando la página", http.StatusInternalServerError)
+		slog.Error("error rendering page", "tab", tab, "error", err)
+		http.Error(w, "Internal error rendering the page", http.StatusInternalServerError)
 	}
 }
 
-// HandleLoginPage renderiza el formulario de login (ruta pública). Si ya hay
-// sesión válida, redirige al índice. El flash (?flash= o cookie) recibe el
-// mismo tratamiento one-shot que el índice.
+// HandleLoginPage renders the login form (public route). If there is already
+// a valid session it redirects to the index. The flash (?flash= or cookie)
+// receives the same one-shot treatment as the index.
 func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	if auth.HasValidSession(r) {
 		http.Redirect(w, r, "/", http.StatusFound)
@@ -406,14 +410,14 @@ func HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 		data.FlashType = flashType(key)
 	}
 	if err := executePage(w, "login", data); err != nil {
-		slog.Error("error renderizando login", "error", err)
-		http.Error(w, "Error interno renderizando la página", http.StatusInternalServerError)
+		slog.Error("error rendering login", "error", err)
+		http.Error(w, "Internal error rendering the page", http.StatusInternalServerError)
 	}
 }
 
-// NewPagesMux ensambla las rutas SSR protegidas por sesión (cookie o Bearer).
-// Las mutaciones se montan bajo /sites/{domain}/... y pasan por el middleware
-// CSRF en cmd/server/main.go (task 2.7).
+// NewPagesMux assembles the SSR routes protected by session (cookie or
+// Bearer). The mutations are mounted under /sites/{domain}/... and go through
+// the CSRF middleware in cmd/server/main.go (task 2.7).
 func NewPagesMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", HandleIndex)
@@ -425,7 +429,7 @@ func NewPagesMux() *http.ServeMux {
 	return mux
 }
 
-// NewLoginMux expone las rutas públicas de autenticación (sin sesión).
+// NewLoginMux exposes the public authentication routes (without session).
 func NewLoginMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /login", HandleLoginPage)

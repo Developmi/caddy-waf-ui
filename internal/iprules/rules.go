@@ -11,13 +11,13 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/domain"
 )
 
-// IPRules contiene las listas de direcciones IP o bloques CIDR.
+// IPRules holds the lists of IP addresses or CIDR blocks.
 type IPRules struct {
 	Allowlist []string `json:"allowlist"`
 	Denylist  []string `json:"denylist"`
 }
 
-// Plantilla basada en los ejemplos de configuración nativa de Caddy.
+// Template based on Caddy's native configuration examples.
 const ipRulesTemplate = `# Caddy WAF UI managed - do not edit manually
 {{ .Header }}
 
@@ -47,14 +47,14 @@ type ipRulesData struct {
 	AllowStr string
 }
 
-// ipRulesTmpl se parsea UNA vez a nivel de paquete (hallazgo J5-8), mismo
-// patrón que ui/embed.go: el template constante jamás falla al parsear.
+// ipRulesTmpl is parsed ONCE at package level (finding J5-8), same pattern
+// as ui/embed.go: the constant template never fails to parse.
 var ipRulesTmpl = template.Must(template.New("iprules").Parse(ipRulesTemplate))
 
-// normalizeIPEntry valida una entrada IP o CIDR y la normaliza a notación CIDR:
-// una IP suelta queda como /32 (IPv4) o /128 (IPv6). Devuelve error ante
-// cualquier valor no parseable, evitando que una entrada maliciosa escape el
-// bloque de matchers de Caddy (ej: "1.2.3.4}\nabort @foo").
+// normalizeIPEntry validates an IP or CIDR entry and normalizes it to CIDR
+// notation: a bare IP becomes /32 (IPv4) or /128 (IPv6). It returns an error
+// on any unparseable value, preventing a malicious entry from escaping
+// Caddy's matcher block (e.g.: "1.2.3.4}\nabort @foo").
 func normalizeIPEntry(entry string) (string, error) {
 	if _, ipnet, err := net.ParseCIDR(entry); err == nil {
 		return ipnet.String(), nil
@@ -67,10 +67,10 @@ func normalizeIPEntry(entry string) (string, error) {
 		return ip.String() + "/128", nil
 	}
 
-	return "", fmt.Errorf("entrada IP inválida %q: se espera una IP o un bloque CIDR", entry)
+	return "", fmt.Errorf("invalid IP entry %q: expected an IP or a CIDR block", entry)
 }
 
-// normalizeIPEntries valida y normaliza una lista completa de entradas.
+// normalizeIPEntries validates and normalizes a full list of entries.
 func normalizeIPEntries(entries []string) ([]string, error) {
 	normalized := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -83,9 +83,9 @@ func normalizeIPEntries(entries []string) ([]string, error) {
 	return normalized, nil
 }
 
-// ValidateIPRules valida ambas listas (allow y deny) sin generar configuración.
-// La cadena de servicio (D2) la invoca ANTES del backup para fallar rápido y
-// no dejar snapshots de entradas inválidas.
+// ValidateIPRules validates both lists (allow and deny) without generating
+// configuration. The service chain (D2) invokes it BEFORE the backup to fail
+// fast and not leave snapshots of invalid entries.
 func ValidateIPRules(rules IPRules) error {
 	if _, err := normalizeIPEntries(rules.Denylist); err != nil {
 		return err
@@ -94,8 +94,8 @@ func ValidateIPRules(rules IPRules) error {
 	return err
 }
 
-// GenerateSnippet crea el bloque de configuración de matchers de Caddy para bloqueo de IPs.
-// Es una función pura y no interactúa con el disco[cite: 1].
+// GenerateSnippet creates the Caddy matcher configuration block for IP
+// blocking. It is a pure function and does not interact with the disk[cite: 1].
 func GenerateSnippet(site *domain.Site, rules IPRules) ([]byte, error) {
 	denyList, err := normalizeIPEntries(rules.Denylist)
 	if err != nil {
@@ -110,14 +110,14 @@ func GenerateSnippet(site *domain.Site, rules IPRules) ([]byte, error) {
 	data := ipRulesData{
 		Slug:   domain.DomainSlug(site.Domain),
 		Header: domain.Header(site.Domain, "", time.Now()),
-		// Unimos los slices en un solo string separado por espacios para el Caddyfile
+		// Join the slices into a single space-separated string for the Caddyfile
 		DenyStr:  strings.Join(denyList, " "),
 		AllowStr: strings.Join(allowList, " "),
 	}
 
 	var buf bytes.Buffer
 	if err := ipRulesTmpl.Execute(&buf, data); err != nil {
-		return nil, fmt.Errorf("error ejecutando template de ip-rules: %w", err)
+		return nil, fmt.Errorf("error executing ip-rules template: %w", err)
 	}
 
 	return buf.Bytes(), nil

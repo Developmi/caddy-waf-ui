@@ -7,58 +7,58 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/domain"
 )
 
-// TestOverlayHeaderRoundTripWAF: Header → ParseHeader debe devolver los mismos
-// campos para el formato de 3 segmentos (waf: con modo).
+// TestOverlayHeaderRoundTripWAF: Header → ParseHeader must return the same
+// fields for the 3-segment format (waf: with mode).
 func TestOverlayHeaderRoundTripWAF(t *testing.T) {
 	ts := time.Date(2026, 8, 7, 12, 30, 0, 0, time.UTC)
 	header := domain.Header("api.example.com", domain.ModeOn, ts)
 
 	want := "# domain: api.example.com | mode: On | updated: 2026-08-07T12:30:00Z"
 	if header != want {
-		t.Fatalf("Header() = %q; se esperaba %q", header, want)
+		t.Fatalf("Header() = %q; expected %q", header, want)
 	}
 
 	info, err := domain.ParseHeader(header)
 	if err != nil {
-		t.Fatalf("ParseHeader falló: %v", err)
+		t.Fatalf("ParseHeader failed: %v", err)
 	}
 	if info.Domain != "api.example.com" {
-		t.Errorf("Domain = %q; se esperaba api.example.com", info.Domain)
+		t.Errorf("Domain = %q; expected api.example.com", info.Domain)
 	}
 	if !info.HasMode || info.Mode != domain.ModeOn {
-		t.Errorf("Mode = %q (HasMode=%v); se esperaba On", info.Mode, info.HasMode)
+		t.Errorf("Mode = %q (HasMode=%v); expected On", info.Mode, info.HasMode)
 	}
 	if !info.HasUpdated || !info.Updated.Equal(ts) {
-		t.Errorf("Updated = %v (HasUpdated=%v); se esperaba %v", info.Updated, info.HasUpdated, ts)
+		t.Errorf("Updated = %v (HasUpdated=%v); expected %v", info.Updated, info.HasUpdated, ts)
 	}
 }
 
-// TestOverlayHeaderRoundTripNoMode: el formato de 2 segmentos (exclusiones e
-// ip-rules) round-trip sin modo y sin degradar.
+// TestOverlayHeaderRoundTripNoMode: the 2-segment format (exclusions and
+// ip-rules) round-trips without a mode and without degrading.
 func TestOverlayHeaderRoundTripNoMode(t *testing.T) {
-	// RFC3339 no transporta sub-segundos: se usa un timestamp truncado para
-	// que el round-trip sea exacto.
+	// RFC3339 does not carry sub-seconds: a truncated timestamp is used so
+	// the round-trip is exact.
 	ts := time.Now().UTC().Truncate(time.Second)
 	header := domain.Header("api.example.com", "", ts)
 
 	info, err := domain.ParseHeader(header)
 	if err != nil {
-		t.Fatalf("ParseHeader falló: %v", err)
+		t.Fatalf("ParseHeader failed: %v", err)
 	}
 	if info.Domain != "api.example.com" {
-		t.Errorf("Domain = %q; se esperaba api.example.com", info.Domain)
+		t.Errorf("Domain = %q; expected api.example.com", info.Domain)
 	}
 	if info.HasMode || info.Mode != "" {
-		t.Errorf("Mode = %q (HasMode=%v); la cabecera sin modo no debe traer modo", info.Mode, info.HasMode)
+		t.Errorf("Mode = %q (HasMode=%v); a header without mode must not carry a mode", info.Mode, info.HasMode)
 	}
 	if !info.HasUpdated || !info.Updated.Equal(ts) {
-		t.Errorf("Updated = %v (HasUpdated=%v); se esperaba %v", info.Updated, info.HasUpdated, ts)
+		t.Errorf("Updated = %v (HasUpdated=%v); expected %v", info.Updated, info.HasUpdated, ts)
 	}
 }
 
-// TestParseHeaderTolerant: el parser conserva la tolerancia del scanner
-// histórico: espaciado irregular, claves en mayúsculas y segmentos
-// desconocidos no rompen el parseo.
+// TestParseHeaderTolerant: the parser keeps the tolerance of the historical
+// scanner: irregular spacing, uppercase keys and unknown segments do not
+// break parsing.
 func TestParseHeaderTolerant(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -79,44 +79,45 @@ func TestParseHeaderTolerant(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			info, err := domain.ParseHeader(tt.line)
 			if err != nil {
-				t.Fatalf("ParseHeader falló: %v", err)
+				t.Fatalf("ParseHeader failed: %v", err)
 			}
 			if info.Domain != tt.wantDomain {
-				t.Errorf("Domain = %q; se esperaba %q", info.Domain, tt.wantDomain)
+				t.Errorf("Domain = %q; expected %q", info.Domain, tt.wantDomain)
 			}
 			if info.HasMode != tt.wantHasMode || info.Mode != tt.wantMode {
-				t.Errorf("Mode = %q (HasMode=%v); se esperaba %q (HasMode=%v)", info.Mode, info.HasMode, tt.wantMode, tt.wantHasMode)
+				t.Errorf("Mode = %q (HasMode=%v); expected %q (HasMode=%v)", info.Mode, info.HasMode, tt.wantMode, tt.wantHasMode)
 			}
 		})
 	}
 }
 
-// TestParseHeaderErrors: errores explícitos para cabeceras sin prefijo o sin
-// dominio (fail-loud, no silencioso).
+// TestParseHeaderErrors: explicit errors for headers without a prefix or
+// without a domain (fail-loud, not silent).
 func TestParseHeaderErrors(t *testing.T) {
 	if _, err := domain.ParseHeader("domain: api.example.com | mode: On"); err == nil {
-		t.Error("una línea sin el prefijo '# domain:' debe fallar")
+		t.Error("a line without the '# domain:' prefix must fail")
 	}
 	if _, err := domain.ParseHeader("# domain:   | mode: On"); err == nil {
-		t.Error("una cabecera con dominio vacío debe fallar")
+		t.Error("a header with an empty domain must fail")
 	}
 }
 
-// TestParseHeaderInvalidTimestamp: un "updated" no parseable no es error de
-// cabecera: queda señalado con HasUpdated=false y el valor crudo disponible
-// para que el consumidor advierta (mismo comportamiento que el scanner previo).
+// TestParseHeaderInvalidTimestamp: an unparseable "updated" is not a header
+// error: it is flagged with HasUpdated=false and the raw value is kept
+// available so the consumer can surface it (same behavior as the previous
+// scanner).
 func TestParseHeaderInvalidTimestamp(t *testing.T) {
 	info, err := domain.ParseHeader("# domain: api.example.com | updated: no-es-una-fecha")
 	if err != nil {
-		t.Fatalf("un timestamp inválido no debe romper la cabecera: %v", err)
+		t.Fatalf("an invalid timestamp must not break the header: %v", err)
 	}
 	if info.Domain != "api.example.com" {
-		t.Errorf("Domain = %q; se esperaba api.example.com", info.Domain)
+		t.Errorf("Domain = %q; expected api.example.com", info.Domain)
 	}
 	if info.HasUpdated {
-		t.Error("HasUpdated debe ser false con timestamp inválido")
+		t.Error("HasUpdated must be false with an invalid timestamp")
 	}
 	if info.UpdatedRaw != "no-es-una-fecha" {
-		t.Errorf("UpdatedRaw = %q; se esperaba el valor crudo", info.UpdatedRaw)
+		t.Errorf("UpdatedRaw = %q; expected the raw value", info.UpdatedRaw)
 	}
 }

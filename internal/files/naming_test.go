@@ -9,9 +9,9 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/files"
 )
 
-// TestDomainSlug vive en internal/domain/slug_test.go (la función se movió a
-// la frontera pure-domain, hallazgo J5-5); este archivo conserva los tests de
-// las rutas derivadas del slug.
+// TestDomainSlug lives in internal/domain/slug_test.go (the function moved
+// to the pure-domain boundary, finding J5-5); this file keeps the tests of
+// the paths derived from the slug.
 
 func TestBackupDirPath(t *testing.T) {
 	tests := []struct {
@@ -20,15 +20,15 @@ func TestBackupDirPath(t *testing.T) {
 		domain    string
 		expected  string
 	}{
-		{"Dominio normal", "/backups", "api.example.com", "/backups/api_example_com"},
-		{"Dominio con comodín", "/backups", "*.example.com", "/backups/wildcard_example_com"},
+		{"Normal domain", "/backups", "api.example.com", "/backups/api_example_com"},
+		{"Wildcard domain", "/backups", "*.example.com", "/backups/wildcard_example_com"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := files.BackupDirPath(tt.backupDir, tt.domain)
 			if result != filepath.Clean(tt.expected) {
-				t.Errorf("BackupDirPath(%q, %q) = %q; se esperaba %q", tt.backupDir, tt.domain, result, tt.expected)
+				t.Errorf("BackupDirPath(%q, %q) = %q; expected %q", tt.backupDir, tt.domain, result, tt.expected)
 			}
 		})
 	}
@@ -48,24 +48,24 @@ func TestOverlayPath(t *testing.T) {
 		t.Run(tt.fileType, func(t *testing.T) {
 			result, err := files.OverlayPath("/ui-managed", tt.fileType, "api.example.com")
 			if err != nil {
-				t.Fatalf("OverlayPath(%q) falló: %v", tt.fileType, err)
+				t.Fatalf("OverlayPath(%q) failed: %v", tt.fileType, err)
 			}
 			if result != filepath.Clean(tt.expected) {
-				t.Errorf("OverlayPath(%q) = %q; se esperaba %q", tt.fileType, result, tt.expected)
+				t.Errorf("OverlayPath(%q) = %q; expected %q", tt.fileType, result, tt.expected)
 			}
 		})
 	}
 
-	// Tipo desconocido → error explícito (fail-loud).
+	// Unknown type → explicit error (fail-loud).
 	if _, err := files.OverlayPath("/ui-managed", "caddyfile", "api.example.com"); err == nil {
-		t.Error("OverlayPath con tipo desconocido debe fallar")
+		t.Error("OverlayPath with an unknown type must fail")
 	}
 }
 
-// TestBackupDirPathHostileDomainStaysInside: incluso con un dominio hostil, el
-// directorio de backups derivado del slug debe quedar DENTRO de backupDir:
-// el path traversal ("x/../../tmp/evil") no puede escapar del directorio
-// raíz de snapshots.
+// TestBackupDirPathHostileDomainStaysInside: even with a hostile domain, the
+// backups directory derived from the slug must stay INSIDE backupDir:
+// the path traversal ("x/../../tmp/evil") cannot escape the root snapshots
+// directory.
 func TestBackupDirPathHostileDomainStaysInside(t *testing.T) {
 	backupDir := "/backups"
 	hostile := []string{"x/../../tmp/evil", "../..", "..", "/etc/passwd", "a b"}
@@ -74,10 +74,10 @@ func TestBackupDirPathHostileDomainStaysInside(t *testing.T) {
 		got := files.BackupDirPath(backupDir, domainName)
 		want := filepath.Join(backupDir, domain.DomainSlug(domainName))
 		if got != want {
-			t.Errorf("BackupDirPath(%q, %q) = %q; se esperaba %q", backupDir, domainName, got, want)
+			t.Errorf("BackupDirPath(%q, %q) = %q; expected %q", backupDir, domainName, got, want)
 		}
 		if !strings.HasPrefix(got, backupDir+string(filepath.Separator)) {
-			t.Errorf("BackupDirPath(%q, %q) = %q: debe quedar dentro de backupDir", backupDir, domainName, got)
+			t.Errorf("BackupDirPath(%q, %q) = %q: must stay inside backupDir", backupDir, domainName, got)
 		}
 	}
 }

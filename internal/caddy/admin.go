@@ -17,11 +17,11 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/config"
 )
 
-// ReadbackState describe el último resultado de la verificación post-reload
-// (D3): tras cada POST /load, la UI consulta la config viva de Caddy
-// (GET /config/apps/http/servers) para confirmar que el Caddyfile enviado fue
-// realmente adoptado - cierra el gap del "200 ciego" que solo confiaba en la
-// respuesta del load.
+// ReadbackState describes the latest post-reload verification result (D3):
+// after each POST /load, the UI queries Caddy's live config
+// (GET /config/apps/http/servers) to confirm that the submitted Caddyfile
+// was actually adopted - closing the "blind 200" gap that only trusted the
+// load response.
 type ReadbackState struct {
 	OK        bool      `json:"ok"`
 	CheckedAt time.Time `json:"checked_at"`
@@ -35,8 +35,8 @@ var (
 	lastReadback ReadbackState
 )
 
-// LastReadback devuelve el último estado de verificación registrado. La UI lo
-// expone como badge/flag (mismo patrón que el flag Degraded del scanner).
+// LastReadback returns the latest recorded verification state. The UI exposes
+// it as a badge/flag (same pattern as the scanner's Degraded flag).
 func LastReadback() ReadbackState {
 	readbackMu.Lock()
 	defer readbackMu.Unlock()
@@ -49,22 +49,22 @@ func setReadback(s ReadbackState) {
 	readbackMu.Unlock()
 }
 
-// siteHostRE captura los hosts literales de los bloques de sitio del Caddyfile.
-// Por diseño NO captura: el bloque global ("{"), los snippets ("(waf) {"), los
-// comentarios ni las direcciones con variable de entorno ("{$SITE_ADDRESS}").
+// siteHostRE captures the literal hosts of the Caddyfile's site blocks.
+// By design it does NOT capture: the global block ("{"), snippets ("(waf) {"),
+// comments, or environment-variable addresses ("{$SITE_ADDRESS}").
 var siteHostRE = regexp.MustCompile(`(?m)^\s*([a-zA-Z0-9*.-]+(?::\d+)?(?:\s*,\s*[a-zA-Z0-9*.-]+(?::\d+)?)*)\s*\{`)
 
-// looksLikeHost filtra tokens que no son hosts: directivas de Caddy como
-// "email {...}", "log {", "header {" o "format json {" matchean la regex de
-// captura porque terminan en "{", pero no son hostnames. Un host real es un
-// FQDN (contiene "."), una dirección con puerto (contiene ":") o "localhost".
+// looksLikeHost filters out tokens that are not hosts: Caddy directives such
+// as "email {...}", "log {", "header {" or "format json {" match the capture
+// regex because they end in "{", but they are not hostnames. A real host is
+// an FQDN (contains "."), a port address (contains ":") or "localhost".
 func looksLikeHost(h string) bool {
 	return strings.Contains(h, ".") || strings.Contains(h, ":") || h == "localhost"
 }
 
-// expectedHosts extrae los nombres de host literales de un Caddyfile. Las
-// direcciones solo-puerto (":80") se descartan: viven en listen addresses, no
-// en host matchers, y no son verificables contra /config/apps/http/servers.
+// expectedHosts extracts the literal host names of a Caddyfile. Port-only
+// addresses (":80") are discarded: they live in listen addresses, not host
+// matchers, and cannot be verified against /config/apps/http/servers.
 func expectedHosts(caddyfile []byte) []string {
 	var hosts []string
 	seen := make(map[string]bool)
@@ -81,14 +81,14 @@ func expectedHosts(caddyfile []byte) []string {
 	return hosts
 }
 
-// validateAdminURL valida la URL de la Admin API (CADDY_ADMIN_URL): scheme
-// http/https, host presente y sin userinfo. La Admin API no admite
-// credenciales embebidas y el fallo debe ser loud ANTES de emitir cualquier
-// request, para no ocultar errores de configuración detrás de fallos de red.
+// validateAdminURL validates the Admin API URL (CADDY_ADMIN_URL): http/https
+// scheme, host present, and no userinfo. The Admin API does not accept
+// embedded credentials, and a failure must be loud BEFORE issuing any
+// request, so configuration errors are not hidden behind network failures.
 func validateAdminURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("CADDY_ADMIN_URL inválido: %w", err)
+		return fmt.Errorf("invalid CADDY_ADMIN_URL: %w", err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("CADDY_ADMIN_URL: scheme must be http or https, got %q", u.Scheme)
@@ -102,10 +102,10 @@ func validateAdminURL(raw string) error {
 	return nil
 }
 
-// newAdminClient devuelve un cliente HTTP para la Admin API con timeout fijo
-// y sin seguir redirecciones: un 30x nunca es un resultado válido del admin y
-// seguirlo podría despachar la carga/lectura hacia un destino distinto del
-// configurado (fail-loud sobre la respuesta bruta).
+// newAdminClient returns an HTTP client for the Admin API with a fixed
+// timeout and no redirect following: a 30x is never a valid admin result,
+// and following it could dispatch the load/read to a destination other than
+// the configured one (fail-loud on the raw response).
 func newAdminClient() *http.Client {
 	return &http.Client{
 		Timeout: 10 * time.Second,
@@ -115,9 +115,9 @@ func newAdminClient() *http.Client {
 	}
 }
 
-// fetchLiveHosts consulta la config viva y recolecta los hosts de los server
-// blocks (matchers "host" de las rutas HTTP). Devuelve además la cantidad de
-// servers cargados.
+// fetchLiveHosts queries the live config and collects the hosts of the
+// server blocks ("host" matchers of the HTTP routes). It also returns the
+// number of loaded servers.
 func fetchLiveHosts(adminURL string) ([]string, int, error) {
 	if err := validateAdminURL(adminURL); err != nil {
 		return nil, 0, err
@@ -130,12 +130,12 @@ func fetchLiveHosts(adminURL string) ([]string, int, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf("GET /config/apps/http/servers devolvió %s", resp.Status)
+		return nil, 0, fmt.Errorf("GET /config/apps/http/servers returned %s", resp.Status)
 	}
 
 	var cfg any
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&cfg); err != nil {
-		return nil, 0, fmt.Errorf("respuesta /config no parseable: %w", err)
+		return nil, 0, fmt.Errorf("unparseable /config response: %w", err)
 	}
 
 	var hosts []string
@@ -147,8 +147,8 @@ func fetchLiveHosts(adminURL string) ([]string, int, error) {
 	return hosts, servers, nil
 }
 
-// collectHosts camina el JSON de config recursivamente y acumula los valores
-// de los matchers "host" de Caddy (rutas HTTP).
+// collectHosts walks the config JSON recursively and accumulates the values
+// of Caddy's "host" matchers (HTTP routes).
 func collectHosts(v any, hosts *[]string) {
 	switch t := v.(type) {
 	case map[string]any:
@@ -180,21 +180,21 @@ func containsHost(live []string, h string) bool {
 	return false
 }
 
-// Reload lee el Caddyfile (configurado en CADDY_UI_CADDYFILE) y lo envía a
-// POST /load en la Admin API de Caddy con Content-Type text/caddyfile.
-// Así Caddy re-adapta los imports y los snippets actualizados de ui-managed/
-// surten efecto. Ante cualquier fallo (archivo ilegible o recarga rechazada)
-// devuelve un error explícito (fail-loud).
+// Reload reads the Caddyfile (configured via CADDY_UI_CADDYFILE) and sends
+// it to POST /load on Caddy's Admin API with Content-Type text/caddyfile.
+// This lets Caddy re-adapt the imports and take the updated ui-managed/
+// snippets into effect. On any failure (unreadable file or rejected reload)
+// it returns an explicit error (fail-loud).
 //
-// D3 (read-back): tras un 200 del load, consulta la config viva y verifica que
-// los hosts literales del Caddyfile enviado estén en los host matchers. Si la
-// verificación falla, Reload devuelve error para que la cadena D6 del service
-// layer restaure el overlay previo. Nota: en el fallo de read-back la config ya
-// fue aplicada por Caddy; la restauración del overlay queda señalada en el
-// estado ReadbackState y en el log de auditoría.
+// D3 (read-back): after a 200 from the load, it queries the live config and
+// verifies that the literal hosts of the submitted Caddyfile are present in
+// the host matchers. If the verification fails, Reload returns an error so
+// that the D6 chain in the service layer can restore the previous overlay.
+// Note: on a read-back failure the config was already applied by Caddy; the
+// overlay restoration is flagged in the ReadbackState and in the audit log.
 func Reload() error {
-	// Centralizado en config (hallazgo J5-3): las lecturas de entorno ya no
-	// viven en este paquete.
+	// Centralized in config (finding J5-3): environment reads no longer live
+	// in this package.
 	adminURL := config.AdminURL()
 	if err := validateAdminURL(adminURL); err != nil {
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: err.Error()})
@@ -206,13 +206,13 @@ func Reload() error {
 	caddyfile, err := os.ReadFile(caddyfilePath)
 	if err != nil {
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: err.Error()})
-		return fmt.Errorf("no se pudo leer el Caddyfile %q: %w", caddyfilePath, err)
+		return fmt.Errorf("could not read Caddyfile %q: %w", caddyfilePath, err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, adminURL+"/load", bytes.NewReader(caddyfile))
 	if err != nil {
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: err.Error()})
-		return fmt.Errorf("error creando request de recarga: %w", err)
+		return fmt.Errorf("error creating reload request: %w", err)
 	}
 	req.Header.Set("Content-Type", "text/caddyfile")
 
@@ -220,22 +220,22 @@ func Reload() error {
 	loadResp, err := client.Do(req)
 	if err != nil {
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: err.Error()})
-		return fmt.Errorf("error ejecutando recarga en Caddy: %w", err)
+		return fmt.Errorf("error performing reload in Caddy: %w", err)
 	}
 	defer func() { _ = loadResp.Body.Close() }()
 
 	if loadResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(loadResp.Body)
-		msg := fmt.Sprintf("caddy POST /load falló con HTTP %d: %s", loadResp.StatusCode, string(body))
+		msg := fmt.Sprintf("caddy POST /load failed with HTTP %d: %s", loadResp.StatusCode, string(body))
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: msg})
 		return errors.New(msg)
 	}
 
-	// Read-back (D3): la config viva debe reflejar los hosts enviados.
+	// Read-back (D3): the live config must reflect the submitted hosts.
 	live, servers, err := fetchLiveHosts(adminURL)
 	if err != nil {
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: err.Error()})
-		return fmt.Errorf("verificación post-reload falló: %w", err)
+		return fmt.Errorf("post-reload verification failed: %w", err)
 	}
 
 	var missing []string
@@ -246,7 +246,7 @@ func Reload() error {
 	}
 
 	if len(missing) > 0 {
-		msg := fmt.Sprintf("read-back: hosts no encontrados en la config viva: %s", strings.Join(missing, ", "))
+		msg := fmt.Sprintf("read-back: hosts not found in the live config: %s", strings.Join(missing, ", "))
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Servers: servers, Missing: missing, Err: msg})
 		return errors.New(msg)
 	}
