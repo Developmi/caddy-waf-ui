@@ -2,8 +2,10 @@
 
 # Install the development tools used by the Makefile quality gates.
 # Idempotent: skips binaries already present in tools/bin unless REINSTALL=1.
-# golangci-lint, hadolint and actionlint are pinned via tools/versions.mk;
-# govulncheck is installed with the local Go toolchain (GOBIN=tools/bin).
+# golangci-lint, hadolint and actionlint are pinned via tools/versions.mk
+# (passed as env by the Makefile); govulncheck reads GOVULNCHECK_VERSION from
+# tools/versions.mk itself and is installed with the local Go toolchain
+# (GOBIN=tools/bin), integrity-checked by the Go checksum DB (GOSUMDB).
 
 set -Eeuo pipefail
 
@@ -117,11 +119,31 @@ install_govulncheck() {
     [[ "${REINSTALL:-}" = "1" ]] && rm -f "$BIN/govulncheck"
     [[ -x "$BIN/govulncheck" ]] && return
 
+    # The Makefile tools target only passes ACTIONLINT/HADOLINT/GOLANGCI via
+    # env; the govulncheck pin is resolved from tools/versions.mk (single
+    # source of truth), unless the caller already exports it (env override,
+    # used by the sandbox harness / future CI digest-mismatch job).
+    if [[ -z "${GOVULNCHECK_VERSION:-}" ]]; then
+        GOVULNCHECK_VERSION="$(sed -n 's/^GOVULNCHECK_VERSION[[:space:]]*:=[[:space:]]*//p' "$ROOT/tools/versions.mk" | tail -1)"
+    fi
+    GOVULNCHECK_VERSION="${GOVULNCHECK_VERSION#v}"
+
+    # Anti-floating gate (CI-1): never @latest. A missing or "latest" pin
+    # aborts non-zero BEFORE any install runs (D9 safe failure).
+    if [[ -z "$GOVULNCHECK_VERSION" || "$GOVULNCHECK_VERSION" = "latest" ]]; then
+        echo "error: GOVULNCHECK_VERSION must be a pinned version (never @latest); check tools/versions.mk" >&2
+        exit 1
+    fi
+
     INSTALLED=1
 
-    echo "Installing govulncheck (go install)..."
+    # golang.org/x/vuln publishes no release binaries (verified 2026-09-06), so
+    # there is no archive + sha256 to verify here (D9 adapted). Integrity comes
+    # from the Go checksum DB: `go install @v<pin>` aborts non-zero if the module
+    # does not match sum.golang.org, so a tampered acquisition never installs.
+    echo "Installing govulncheck v${GOVULNCHECK_VERSION} (pinned, GOSUMDB-verified)..."
 
-    GOBIN="$BIN" go install golang.org/x/vuln/cmd/govulncheck@latest
+    GOBIN="$BIN" go install "golang.org/x/vuln/cmd/govulncheck@v${GOVULNCHECK_VERSION}"
 }
 
 install_actionlint
