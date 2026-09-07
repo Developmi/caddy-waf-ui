@@ -13,10 +13,10 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/ui"
 )
 
-// setupSSR prepara el entorno completo (token, directorios, stub de la Admin
-// API) y ensambla el mux con los tres grupos de rutas EXACTAMENTE como lo
-// hace cmd/server/main.go (task 2.7): público (login), páginas SSR (sesión
-// por cookie o Bearer + CSRF) y API RESTful (Bearer-pura).
+// setupSSR prepares the complete environment (token, directories, stub of
+// the Admin API) and assembles the mux with the three route groups EXACTLY
+// as cmd/server/main.go does (task 2.7): public (login), SSR pages (cookie
+// or Bearer session + CSRF) and RESTful API (Bearer-only).
 func setupSSR(t *testing.T, admin *adminStub) http.Handler {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -24,14 +24,14 @@ func setupSSR(t *testing.T, admin *adminStub) http.Handler {
 	managedDir := filepath.Join(tmp, "ui-managed")
 	backupDir := filepath.Join(tmp, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("fallo creando managedDir: %v", err)
+		t.Fatalf("failed creating managedDir: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
 
 	caddyfile := filepath.Join(tmp, "Caddyfile")
 	if err := os.WriteFile(caddyfile, []byte("example.com {\n}\n"), 0600); err != nil {
-		t.Fatalf("fallo escribiendo Caddyfile: %v", err)
+		t.Fatalf("failed to write test Caddyfile: %v", err)
 	}
 	t.Setenv("CADDY_UI_CADDYFILE", caddyfile)
 
@@ -48,16 +48,16 @@ func setupSSR(t *testing.T, admin *adminStub) http.Handler {
 	return mux
 }
 
-// sessionCookie devuelve una cookie válida como la que fija POST /login.
+// sessionCookie returns a valid cookie like the one POST /login sets.
 func sessionCookie() *http.Cookie {
 	return &http.Cookie{Name: "CADDY_UI_TOKEN", Value: "super-secret-token", Path: "/"}
 }
 
-// formRequest construye un POST urlencoded con cookie opcional.
+// formRequest builds a urlencoded POST with an optional cookie.
 func formRequest(t *testing.T, method, path string, form url.Values, cookie *http.Cookie) *http.Request {
 	req, err := http.NewRequest(method, path, strings.NewReader(form.Encode()))
 	if err != nil {
-		t.Fatalf("fallo creando request: %v", err)
+		t.Fatalf("failed creating request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if cookie != nil {
@@ -66,11 +66,11 @@ func formRequest(t *testing.T, method, path string, form url.Values, cookie *htt
 	return req
 }
 
-// csrfValue deriva el token CSRF del entorno de prueba (D1).
+// csrfValue derives the CSRF token of the test environment (D1).
 func csrfValue(t *testing.T) string {
 	token, err := auth.CSRFValue()
 	if err != nil {
-		t.Fatalf("fallo derivando token CSRF: %v", err)
+		t.Fatalf("failed deriving the CSRF token: %v", err)
 	}
 	return token
 }
@@ -83,18 +83,18 @@ func TestSSRLoginSetsSessionCookie(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/login", form, nil))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 tras login válido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 after a valid login, got %d", rec.Code)
 	}
 	if loc := rec.Header().Get("Location"); loc != "/" {
-		t.Errorf("se esperaba redirección a /, se obtuvo %q", loc)
+		t.Errorf("expected a redirect to /, got %q", loc)
 	}
 	setCookie := rec.Header().Get("Set-Cookie")
 	if !strings.Contains(setCookie, "CADDY_UI_TOKEN=super-secret-token") {
-		t.Errorf("la cookie no transporta el token: %q", setCookie)
+		t.Errorf("the cookie does not carry the token: %q", setCookie)
 	}
 	for _, flag := range []string{"HttpOnly", "Secure", "SameSite=Strict"} {
 		if !strings.Contains(setCookie, flag) {
-			t.Errorf("la cookie de sesión no lleva el flag %s: %q", flag, setCookie)
+			t.Errorf("the session cookie does not carry the flag %s: %q", flag, setCookie)
 		}
 	}
 }
@@ -107,13 +107,13 @@ func TestSSRLoginRejectsWrongToken(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/login", form, nil))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 tras login inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 after an invalid login, got %d", rec.Code)
 	}
 	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "flash=invalid_login") {
-		t.Errorf("se esperaba redirección con flash=invalid_login, se obtuvo %q", loc)
+		t.Errorf("expected a redirect with flash=invalid_login, got %q", loc)
 	}
 	if setCookie := rec.Header().Get("Set-Cookie"); strings.Contains(setCookie, "CADDY_UI_TOKEN=") {
-		t.Errorf("no debe fijarse cookie con credencial inválida: %q", setCookie)
+		t.Errorf("no cookie must be set with an invalid credential: %q", setCookie)
 	}
 }
 
@@ -124,10 +124,10 @@ func TestSSRPageWithoutSessionRedirectsToLogin(t *testing.T) {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != http.StatusFound {
-			t.Errorf("%s: se esperaba 302 sin sesión, se obtuvo %d", path, rec.Code)
+			t.Errorf("%s: expected 302 without a session, got %d", path, rec.Code)
 		}
 		if loc := rec.Header().Get("Location"); loc != "/login" {
-			t.Errorf("%s: se esperaba Location /login, se obtuvo %q", path, loc)
+			t.Errorf("%s: expected Location /login, got %q", path, loc)
 		}
 	}
 }
@@ -141,14 +141,14 @@ func TestSSRIndexRendersWithCookie(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200 con cookie de sesión, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200 with a session cookie, got %d", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "Caddy WAF UI") {
-		t.Errorf("el HTML no contiene la marca de la UI")
+		t.Errorf("the HTML does not contain the UI brand")
 	}
 	if !strings.Contains(body, "?tab=sites") {
-		t.Errorf("el HTML no contiene la navegación por pestañas")
+		t.Errorf("the HTML does not contain the tab navigation")
 	}
 }
 
@@ -161,18 +161,18 @@ func TestSSRIndexAcceptsBearer(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200 con Bearer válido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200 with a valid Bearer, got %d", rec.Code)
 	}
 }
 
 func TestSSRIndexEscapesDomainValue(t *testing.T) {
 	handler := setupSSR(t, &adminStub{})
 
-	// Un dominio con <script> registrado desde la cabecera de un overlay:
-	// html/template debe escaparlo en contexto de texto (spec web-ui).
+	// A domain with <script> registered from the header of an overlay:
+	// html/template must escape it in text context (web-ui spec).
 	overlay := filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-<script>_com.conf")
 	if err := os.WriteFile(overlay, []byte("# domain: <script>.com | mode: On | updated: 2026-08-07T00:00:00Z\n"), 0640); err != nil {
-		t.Fatalf("fallo sembrando overlay: %v", err)
+		t.Fatalf("failed seeding overlay: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -181,14 +181,14 @@ func TestSSRIndexEscapesDomainValue(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "&lt;script&gt;.com") {
-		t.Errorf("el dominio debe renderizarse escapado (&lt;script&gt;.com)")
+		t.Errorf("the domain must be rendered escaped (&lt;script&gt;.com)")
 	}
 	if strings.Contains(body, "<script>.com") {
-		t.Errorf("el dominio no debe aparecer crudo en el HTML")
+		t.Errorf("the domain must not appear raw in the HTML")
 	}
 }
 
@@ -206,29 +206,29 @@ func TestSSRPRGModeChangeSuccess(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/example.com/mode", form, sessionCookie()))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 (PRG), se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 (PRG), got %d", rec.Code)
 	}
 	loc, err := url.Parse(rec.Header().Get("Location"))
 	if err != nil {
-		t.Fatalf("Location inválida: %v", err)
+		t.Fatalf("invalid Location: %v", err)
 	}
 	q := loc.Query()
 	if q.Get("flash") != "success" {
-		t.Errorf("se esperaba flash=success, se obtuvo %q", q.Get("flash"))
+		t.Errorf("expected flash=success, got %q", q.Get("flash"))
 	}
 	if q.Get("tab") != "sites" || q.Get("domain") != "example.com" {
-		t.Errorf("la redirección debe preservar tab y domain: %s", rec.Header().Get("Location"))
+		t.Errorf("the redirect must preserve tab and domain: %s", rec.Header().Get("Location"))
 	}
 
 	overlay, err := os.ReadFile(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf"))
 	if err != nil {
-		t.Fatalf("no se escribió el overlay tras el POST: %v", err)
+		t.Fatalf("the overlay was not written after the POST: %v", err)
 	}
 	if !strings.Contains(string(overlay), "SecRuleEngine On") {
-		t.Errorf("el overlay no refleja el modo enviado:\n%s", overlay)
+		t.Errorf("the overlay does not reflect the sent mode:\n%s", overlay)
 	}
 	if admin.reloads != 1 {
-		t.Errorf("se esperaba 1 recarga de Caddy, se hicieron %d", admin.reloads)
+		t.Errorf("expected 1 Caddy reload, %d made", admin.reloads)
 	}
 }
 
@@ -237,7 +237,7 @@ func TestSSRPRGModeChangeInvalidNoMutation(t *testing.T) {
 	handler := setupSSR(t, admin)
 
 	form := url.Values{
-		"mode":   {"ModoInexistente"},
+		"mode":   {"NonexistentMode"},
 		"tab":    {"sites"},
 		"domain": {"example.com"},
 		"csrf":   {csrfValue(t)},
@@ -246,19 +246,19 @@ func TestSSRPRGModeChangeInvalidNoMutation(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/example.com/mode", form, sessionCookie()))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 (PRG), se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 (PRG), got %d", rec.Code)
 	}
 	if q := url.QueryEscape("flash=error"); !strings.Contains(rec.Header().Get("Location"), q) {
 		loc := rec.Header().Get("Location")
 		if !strings.Contains(loc, "flash=error") {
-			t.Errorf("se esperaba flash=error, se obtuvo %q", loc)
+			t.Errorf("expected flash=error, got %q", loc)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf")); !os.IsNotExist(err) {
-		t.Errorf("un POST inválido no debe mutar estado: el overlay no debe existir")
+		t.Errorf("an invalid POST must not mutate state: the overlay must not exist")
 	}
 	if admin.reloads != 0 {
-		t.Errorf("un POST inválido no debe recargar Caddy, se hicieron %d recargas", admin.reloads)
+		t.Errorf("an invalid POST must not reload Caddy, %d reloads made", admin.reloads)
 	}
 }
 
@@ -270,7 +270,7 @@ func TestSSRCSRFMissingTokenRejected(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/example.com/mode", form, sessionCookie()))
 
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf("se esperaba 403 sin token CSRF, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 403 without a CSRF token, got %d", rec.Code)
 	}
 }
 
@@ -287,7 +287,7 @@ func TestSSRCSRFWrongTokenRejected(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/example.com/mode", form, sessionCookie()))
 
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf("se esperaba 403 con token CSRF inválido, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 403 with an invalid CSRF token, got %d", rec.Code)
 	}
 }
 
@@ -295,8 +295,8 @@ func TestSSRCSRFBearerExempt(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupSSR(t, admin)
 
-	// Los requests autenticados por Bearer no pueden ser emitidos cross-site
-	// por un navegador (D1): quedan exentos del chequeo CSRF.
+	// Requests authenticated by Bearer cannot be emitted cross-site by a
+	// browser (D1): they are exempt from the CSRF check.
 	form := url.Values{"mode": {"On"}, "tab": {"sites"}, "domain": {"example.com"}}
 	req := formRequest(t, http.MethodPost, "/sites/example.com/mode", form, nil)
 	req.Header.Set("Authorization", "Bearer super-secret-token")
@@ -304,24 +304,24 @@ func TestSSRCSRFBearerExempt(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 con Bearer (exento de CSRF), se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 with Bearer (CSRF exempt), got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Header().Get("Location"), "flash=success") {
-		t.Errorf("se esperaba flash=success, se obtuvo %q", rec.Header().Get("Location"))
+		t.Errorf("expected flash=success, got %q", rec.Header().Get("Location"))
 	}
 	if admin.reloads != 1 {
-		t.Errorf("se esperaba 1 recarga, se hicieron %d", admin.reloads)
+		t.Errorf("expected 1 reload, %d made", admin.reloads)
 	}
 }
 
-// auditFixture devuelve la ruta del fixture JSONL del lector (misma fuente
-// que los tests unitarios de internal/logs).
+// auditFixture returns the path of the JSONL fixture of the reader (same
+// source as the unit tests of internal/logs).
 func auditFixture() string {
 	return filepath.Join("..", "..", "internal", "logs", "testdata", "audit-valid.jsonl")
 }
 
-// TestSSRLogsTabRendersFilteredEntries: el tab Logs debe alimentarse del audit
-// log REAL (spec audit-logs) y aplicar actionFilter + search server-side.
+// TestSSRLogsTabRendersFilteredEntries: the Logs tab must be fed by the REAL
+// audit log (audit-logs spec) and apply actionFilter + search server-side.
 func TestSSRLogsTabRendersFilteredEntries(t *testing.T) {
 	t.Setenv("CADDY_UI_AUDIT_LOG", auditFixture())
 	handler := setupSSR(t, &adminStub{})
@@ -332,52 +332,52 @@ func TestSSRLogsTabRendersFilteredEntries(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "942100") {
-		t.Errorf("la entrada bloqueada (942100) debe renderizarse")
+		t.Errorf("the blocked entry (942100) must be rendered")
 	}
 	if !strings.Contains(body, "/wp-admin/login.php") {
-		t.Errorf("la URI de la entrada bloqueada debe renderizarse")
+		t.Errorf("the URI of the blocked entry must be rendered")
 	}
 	if strings.Contains(body, "920420") {
-		t.Errorf("actionFilter=BLOCKED debe excluir la entrada detectada (920420)")
+		t.Errorf("actionFilter=BLOCKED must exclude the detected entry (920420)")
 	}
 	if strings.Contains(body, "203.0.113.9") {
-		t.Errorf("search=1.2.3.4 debe excluir la entrada del cliente 203.0.113.9")
+		t.Errorf("search=1.2.3.4 must exclude the entry of the client 203.0.113.9")
 	}
 	if strings.Contains(body, "No Coraza audit logs found") {
-		t.Errorf("con resultados el estado vacío no debe renderizarse")
+		t.Errorf("with results the empty state must not be rendered")
 	}
 }
 
-// TestSSRLogsTabSearchMatchesAnyField: el search es case-insensitive y cubre
-// client/uri/ruleID/message (placeholder del template).
+// TestSSRLogsTabSearchMatchesAnyField: the search is case-insensitive and
+// covers client/uri/ruleID/message (placeholder of the template).
 func TestSSRLogsTabSearchMatchesAnyField(t *testing.T) {
 	t.Setenv("CADDY_UI_AUDIT_LOG", auditFixture())
 	handler := setupSSR(t, &adminStub{})
 
-	// URI en mayúsculas: debe matchear /wp-admin/login.php.
+	// Uppercase URI: it must match /wp-admin/login.php.
 	req := httptest.NewRequest(http.MethodGet, "/?tab=logs&search=WP-ADMIN", nil)
 	req.AddCookie(sessionCookie())
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, "942100") {
-		t.Errorf("search=WP-ADMIN debe matchear la entrada 942100 (case-insensitive)")
+		t.Errorf("search=WP-ADMIN must match the entry 942100 (case-insensitive)")
 	}
 	if strings.Contains(body, "920420") {
-		t.Errorf("search=WP-ADMIN no debe traer la entrada 920420")
+		t.Errorf("search=WP-ADMIN must not bring the entry 920420")
 	}
 }
 
-// TestSSRLogsTabEmptyState: búsqueda sin resultados y archivo ausente
-// renderizan el estado vacío honesto (200, nunca 500).
+// TestSSRLogsTabEmptyState: a search without results and a missing file
+// render the honest empty state (200, never 500).
 func TestSSRLogsTabEmptyState(t *testing.T) {
 	t.Setenv("CADDY_UI_AUDIT_LOG", auditFixture())
 	handler := setupSSR(t, &adminStub{})
@@ -388,24 +388,24 @@ func TestSSRLogsTabEmptyState(t *testing.T) {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("%s: se esperaba 200, se obtuvo %d", path, rec.Code)
+			t.Fatalf("%s: expected 200, got %d", path, rec.Code)
 		}
 		if !strings.Contains(rec.Body.String(), "No Coraza audit logs found") {
-			t.Errorf("%s: sin resultados debe renderizar el estado vacío", path)
+			t.Errorf("%s: without results it must render the empty state", path)
 		}
 	}
 
-	// Archivo ausente (primer arranque del sidecar): warn + estado vacío.
+	// Missing file (first start of the sidecar): warn + empty state.
 	t.Setenv("CADDY_UI_AUDIT_LOG", filepath.Join(t.TempDir(), "no-existe.log"))
 	req := httptest.NewRequest(http.MethodGet, "/?tab=logs", nil)
 	req.AddCookie(sessionCookie())
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("sin archivo de audit log se esperaba 200 con estado vacío, se obtuvo %d", rec.Code)
+		t.Fatalf("without an audit log file expected 200 with the empty state, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "No Coraza audit logs found") {
-		t.Errorf("sin archivo de audit log debe renderizar el estado vacío")
+		t.Errorf("without an audit log file it must render the empty state")
 	}
 }
 
@@ -417,37 +417,39 @@ func TestSSRLogoutClearsSessionCookie(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/logout", form, sessionCookie()))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 tras logout, se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 after logout, got %d", rec.Code)
 	}
 	setCookie := rec.Header().Get("Set-Cookie")
 	if !strings.Contains(setCookie, "CADDY_UI_TOKEN=") {
-		t.Fatalf("logout debe emitir una cookie de expiración: %q", setCookie)
+		t.Fatalf("logout must emit an expiration cookie: %q", setCookie)
 	}
 
-	// Tras el logout, la sesión ya no es válida: la página vuelve a redirigir.
+	// After the logout the session is no longer valid: the page redirects
+	// again.
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec2.Code != http.StatusFound || rec2.Header().Get("Location") != "/login" {
-		t.Errorf("tras logout, GET / debe redirigir a /login (302), se obtuvo %d %q", rec2.Code, rec2.Header().Get("Location"))
+		t.Errorf("after logout, GET / must redirect to /login (302), got %d %q", rec2.Code, rec2.Header().Get("Location"))
 	}
 }
 
-// TestSSRPRGRollbackSuccess: POST /sites/{domain}/rollback restaura el
-// snapshot (PRG 303 + flash) y el overlay vuelve a los bytes del snapshot.
+// TestSSRPRGRollbackSuccess: POST /sites/{domain}/rollback restores the
+// snapshot (PRG 303 + flash) and the overlay returns to the bytes of the
+// snapshot.
 func TestSSRPRGRollbackSuccess(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupSSR(t, admin)
 
 	overlayPath := filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf")
-	if err := os.WriteFile(overlayPath, []byte("estado actual"), 0640); err != nil {
-		t.Fatalf("fallo sembrando overlay: %v", err)
+	if err := os.WriteFile(overlayPath, []byte("current state"), 0640); err != nil {
+		t.Fatalf("failed seeding overlay: %v", err)
 	}
 	slugDir := filepath.Join(os.Getenv("CADDY_UI_BACKUP_DIR"), "example_com")
 	if err := os.MkdirAll(slugDir, 0750); err != nil {
-		t.Fatalf("fallo creando dir de backups: %v", err)
+		t.Fatalf("failed creating backups dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(slugDir, "2020-01-01T00-00-00Z.waf.conf"), []byte("estado restaurado"), 0640); err != nil {
-		t.Fatalf("fallo sembrando snapshot: %v", err)
+	if err := os.WriteFile(filepath.Join(slugDir, "2020-01-01T00-00-00Z.waf.conf"), []byte("restored state"), 0640); err != nil {
+		t.Fatalf("failed seeding snapshot: %v", err)
 	}
 
 	form := url.Values{
@@ -460,37 +462,37 @@ func TestSSRPRGRollbackSuccess(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/example.com/rollback", form, sessionCookie()))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 (PRG), se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 (PRG), got %d", rec.Code)
 	}
 	loc := rec.Header().Get("Location")
 	if !strings.Contains(loc, "flash=success") {
-		t.Errorf("se esperaba flash=success, se obtuvo %q", loc)
+		t.Errorf("expected flash=success, got %q", loc)
 	}
 	if !strings.Contains(loc, "tab=rollback") {
-		t.Errorf("la redirección debe preservar la pestaña rollback: %q", loc)
+		t.Errorf("the redirect must preserve the rollback tab: %q", loc)
 	}
 
 	overlay, err := os.ReadFile(overlayPath)
 	if err != nil {
-		t.Fatalf("no se restauró el overlay: %v", err)
+		t.Fatalf("the overlay was not restored: %v", err)
 	}
-	if string(overlay) != "estado restaurado" {
-		t.Errorf("el overlay debe contener los bytes del snapshot: %q", overlay)
+	if string(overlay) != "restored state" {
+		t.Errorf("the overlay must contain the bytes of the snapshot: %q", overlay)
 	}
 	if admin.reloads != 1 {
-		t.Errorf("se esperaba 1 recarga de Caddy, se hicieron %d", admin.reloads)
+		t.Errorf("expected 1 Caddy reload, %d made", admin.reloads)
 	}
 }
 
-// TestSSRPRGRollbackInvalidNoMutation: un snapshot inválido devuelve 303
-// ?flash=error sin mutar el overlay ni recargar Caddy (fail-fast).
+// TestSSRPRGRollbackInvalidNoMutation: an invalid snapshot returns 303
+// ?flash=error without mutating the overlay nor reloading Caddy (fail-fast).
 func TestSSRPRGRollbackInvalidNoMutation(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupSSR(t, admin)
 
 	overlayPath := filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf")
-	if err := os.WriteFile(overlayPath, []byte("estado actual"), 0640); err != nil {
-		t.Fatalf("fallo sembrando overlay: %v", err)
+	if err := os.WriteFile(overlayPath, []byte("current state"), 0640); err != nil {
+		t.Fatalf("failed seeding overlay: %v", err)
 	}
 
 	form := url.Values{
@@ -503,34 +505,35 @@ func TestSSRPRGRollbackInvalidNoMutation(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/example.com/rollback", form, sessionCookie()))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 (PRG), se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 (PRG), got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Header().Get("Location"), "flash=error") {
-		t.Errorf("se esperaba flash=error, se obtuvo %q", rec.Header().Get("Location"))
+		t.Errorf("expected flash=error, got %q", rec.Header().Get("Location"))
 	}
 
 	overlay, err := os.ReadFile(overlayPath)
 	if err != nil {
-		t.Fatalf("fallo leyendo overlay: %v", err)
+		t.Fatalf("failed reading overlay: %v", err)
 	}
-	if string(overlay) != "estado actual" {
-		t.Errorf("un snapshot inválido no debe mutar el overlay: %q", overlay)
+	if string(overlay) != "current state" {
+		t.Errorf("an invalid snapshot must not mutate the overlay: %q", overlay)
 	}
 	if admin.reloads != 0 {
-		t.Errorf("un snapshot inválido no debe recargar Caddy, se hicieron %d recargas", admin.reloads)
+		t.Errorf("an invalid snapshot must not reload Caddy, %d reloads made", admin.reloads)
 	}
 }
 
-// TestSSRFormRollbackMissingDomainFlashError: un POST hacia un dominio SIN
-// overlay ni snapshots (dominio inexistente en el registry) responde 303
-// ?flash=error a través del stack completo (sesión + CSRF), sin mutar nada ni
-// recargar Caddy (W2, rama de error del form con dominio ausente).
+// TestSSRFormRollbackMissingDomainFlashError: a POST towards a domain
+// WITHOUT overlay or snapshots (domain not in the registry) responds 303
+// ?flash=error through the full stack (session + CSRF), without mutating
+// anything nor reloading Caddy (W2, error branch of the form with an absent
+// domain).
 func TestSSRFormRollbackMissingDomainFlashError(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupSSR(t, admin)
 
 	form := url.Values{
-		"snapId": {"2099-01-01T00-00-00Z.waf.conf"}, // nombre canónico, snapshot inexistente
+		"snapId": {"2099-01-01T00-00-00Z.waf.conf"}, // canonical name, nonexistent snapshot
 		"tab":    {"rollback"},
 		"domain": {"no-such-domain.com"},
 		"csrf":   {csrfValue(t)},
@@ -539,15 +542,15 @@ func TestSSRFormRollbackMissingDomainFlashError(t *testing.T) {
 	handler.ServeHTTP(rec, formRequest(t, http.MethodPost, "/sites/no-such-domain.com/rollback", form, sessionCookie()))
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("se esperaba 303 (PRG), se obtuvo %d", rec.Code)
+		t.Fatalf("expected 303 (PRG), got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Header().Get("Location"), "flash=error") {
-		t.Errorf("dominio sin snapshots debe redirigir con flash=error, se obtuvo %q", rec.Header().Get("Location"))
+		t.Errorf("a domain without snapshots must redirect with flash=error, got %q", rec.Header().Get("Location"))
 	}
 	if _, err := os.Stat(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-no_such_domain_com.conf")); !os.IsNotExist(err) {
-		t.Errorf("un rollback fallido no debe crear overlays para el dominio")
+		t.Errorf("a failed rollback must not create overlays for the domain")
 	}
 	if admin.reloads != 0 {
-		t.Errorf("un rollback fallido no debe recargar Caddy, se hicieron %d recargas", admin.reloads)
+		t.Errorf("a failed rollback must not reload Caddy, %d reloads made", admin.reloads)
 	}
 }

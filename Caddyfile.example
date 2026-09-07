@@ -6,7 +6,7 @@
 
 # Global configuration
 {
-    # Exponer API Admin para que el sidecar pueda invocar el hot-reload
+    # Expose the Admin API so the sidecar can trigger the hot-reload
     admin 0.0.0.0:2019
 
     # Email for Let's Encrypt certificates
@@ -30,8 +30,8 @@
 # -----------------------
 # By default, WAF runs in DetectionOnly mode to prevent false positives.
 # Change to 'SecRuleEngine On' after monitoring and tuning.
-# El snippet (waf) queda SOLO para dominios no gestionados por la UI: los
-# dominios gestionados importan sus overlays per-slug desde ui-managed.
+# The (waf) snippet is ONLY for domains not managed by the UI: managed
+# domains import their per-slug overlays from ui-managed.
 (waf) {
     coraza_waf {
         directives `
@@ -79,9 +79,10 @@ example.com, www.example.com {
 
 # Example 2: Reverse proxy to a backend service with WAF
 # -------------------------------------------------------
-# Sitio gestionado por caddy-waf-ui: overlays per-slug desde
-# /etc/caddy/ui-managed (ip-rules primero, waf después). No usar el snippet
-# (waf) aquí: el coraza_waf inline del overlay ya incluye las exclusions vía Include.
+# Site managed by caddy-waf-ui: per-slug overlays from
+# /etc/caddy/ui-managed (ip-rules first, waf after). Do not use the (waf)
+# snippet here: the overlay's inline coraza_waf already includes exclusions
+# via Include.
 api.example.com {
     import /etc/caddy/ui-managed/ip-rules-api_example_com.conf
     import /etc/caddy/ui-managed/waf-api_example_com.conf
@@ -118,7 +119,7 @@ assets.example.com {
 
 # Example 4: PHP application with WAF (adjust for your stack)
 # ------------------------------------------------------------
-# Sitio gestionado por caddy-waf-ui: overlays per-slug (mismo contrato que api).
+# Site managed by caddy-waf-ui: per-slug overlays (same contract as api).
 app.example.com {
     import /etc/caddy/ui-managed/ip-rules-app_example_com.conf
     import /etc/caddy/ui-managed/waf-app_example_com.conf

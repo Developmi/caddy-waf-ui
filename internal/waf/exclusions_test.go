@@ -22,7 +22,7 @@ func TestGenerateExclusions(t *testing.T) {
 		notIn      []string
 	}{
 		{
-			name: "id válido",
+			name: "valid id",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100"},
 			},
@@ -32,7 +32,7 @@ func TestGenerateExclusions(t *testing.T) {
 			},
 		},
 		{
-			name: "exclusión de nivel URI sin parámetro",
+			name: "URI-level exclusion without parameter",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100", Param: ""},
 			},
@@ -43,7 +43,7 @@ func TestGenerateExclusions(t *testing.T) {
 			notIn: []string{"ARGS:"},
 		},
 		{
-			name: "exclusión con parámetro q genera id 9000001 y target ARGS:q",
+			name: "exclusion with parameter q generates id 9000001 and target ARGS:q",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100", Param: "q"},
 			},
@@ -54,7 +54,7 @@ func TestGenerateExclusions(t *testing.T) {
 			notIn: []string{"SecRuleRemoveById 941100\n"},
 		},
 		{
-			name: "dos exclusions con parámetro reciben ids consecutivos 9000001 y 9000002",
+			name: "two parameterized exclusions get consecutive ids 9000001 and 9000002",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100", Param: "q"},
 				{Type: waf.ExcludeByID, Value: "942100", Param: "id"},
@@ -66,7 +66,7 @@ func TestGenerateExclusions(t *testing.T) {
 			},
 		},
 		{
-			name: "duplicados deduplicados: misma type+value+param no consume id nuevo",
+			name: "duplicates deduplicated: same type+value+param does not consume a new id",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100", Param: "q"},
 				{Type: waf.ExcludeByID, Value: "941100", Param: "q"},
@@ -78,7 +78,7 @@ func TestGenerateExclusions(t *testing.T) {
 			notIn: []string{"9000002"},
 		},
 		{
-			name: "tag con parámetro genera ruleRemoveByTag targeteado",
+			name: "tag with parameter generates targeted ruleRemoveByTag",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByTag, Value: "attack-xss", Param: "q"},
 			},
@@ -88,21 +88,21 @@ func TestGenerateExclusions(t *testing.T) {
 			},
 		},
 		{
-			name: "parámetro solo con espacios rechazado",
+			name: "parameter with only spaces rejected",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100", Param: " "},
 			},
 			wantErr: true,
 		},
 		{
-			name: "parámetro con salto de línea rechazado",
+			name: "parameter with newline rejected",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100", Param: "q\nSecRuleEngine Off"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "tag válido",
+			name: "valid tag",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByTag, Value: "attack-xss"},
 			},
@@ -112,35 +112,35 @@ func TestGenerateExclusions(t *testing.T) {
 			},
 		},
 		{
-			name: "id con salto de línea",
+			name: "id with newline",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100\nSecRuleEngine Off"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "tag con comillas",
+			name: "tag with quotes",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByTag, Value: `attack-xss" }`},
 			},
 			wantErr: true,
 		},
 		{
-			name: "tipo desconocido",
+			name: "unknown type",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExclusionType("uri"), Value: "/api/v1"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "valor con numeral",
+			name: "value with hash",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100#comment"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "id con espacio",
+			name: "id with space",
 			exclusions: []waf.Exclusion{
 				{Type: waf.ExcludeByID, Value: "941100 942100"},
 			},
@@ -154,26 +154,26 @@ func TestGenerateExclusions(t *testing.T) {
 
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("GenerateExclusions debería fallar con %+v, pero no devolvió error", tt.exclusions)
+					t.Fatalf("GenerateExclusions should fail with %+v, but it returned no error", tt.exclusions)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Fatalf("GenerateExclusions falló inesperadamente: %v", err)
+				t.Fatalf("GenerateExclusions failed unexpectedly: %v", err)
 			}
 
 			result := string(resultBytes)
 
 			for _, fragment := range tt.fragments {
 				if !strings.Contains(result, fragment) {
-					t.Errorf("El bloque generado no contiene el fragmento esperado: %q\nBloque:\n%s", fragment, result)
+					t.Errorf("the generated block does not contain the expected fragment: %q\nBlock:\n%s", fragment, result)
 				}
 			}
 
 			for _, fragment := range tt.notIn {
 				if strings.Contains(result, fragment) {
-					t.Errorf("El bloque generado NO debería contener el fragmento: %q\nBloque:\n%s", fragment, result)
+					t.Errorf("the generated block must NOT contain the fragment: %q\nBlock:\n%s", fragment, result)
 				}
 			}
 		})

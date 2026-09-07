@@ -24,9 +24,9 @@ services:
       - caddy_data:/data
       # Configuration storage
       - caddy_config:/config
-      # Overlays de la UI (waf/ip-rules/exclusions) legibles por Caddy (:ro).
-      # Los crea automáticamente ui-config-init (solo los faltantes, nunca
-      # sobrescribe); prod: bind mounts owner 1337:1337 (INTEGRATION.md)
+      # UI overlays (waf/ip-rules/exclusions) readable by Caddy (:ro).
+      # Created automatically by ui-config-init (only the missing ones, never
+      # overwrites); prod: bind mounts owned by 1337:1337 (INTEGRATION.md)
       - caddy-ui-config:/etc/caddy/ui-managed:ro
     environment:
       # ACME email for Let's Encrypt certificates
@@ -42,18 +42,18 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
-      # El Caddyfile importa overlays de ui-managed: crearlos antes de arrancar
-      # Caddy (idempotente, solo faltantes) evita el crash-loop tras recrear
-      # los volúmenes (down -v / primer arranque).
+      # The Caddyfile imports ui-managed overlays: creating them before
+      # starting Caddy (idempotent, missing only) prevents the crash-loop
+      # after recreating the volumes (down -v / first boot).
       ui-config-init:
         condition: service_completed_successfully
     networks:
       - caddy-network
 
-  # Inicializador de overlays ui-managed. Corre una sola vez (restart: "no")
-  # con la misma imagen y usuario (uiuser) que la UI: los archivos que crea
-  # quedan con ownership de la UI, que puede sobrescribirlos siempre. Nunca
-  # sobrescribe configs existentes - solo crea los imports que faltan.
+  # ui-managed overlays initializer. Runs once (restart: "no") with the same
+  # image and user (uiuser) as the UI: the files it creates keep the UI's
+  # ownership, so the UI can always overwrite them. Never overwrites existing
+  # configs - only creates the missing imports.
   ui-config-init:
     build: .
     container_name: ui-config-init
@@ -66,7 +66,7 @@ services:
       - caddy-ui-config:/ui-managed:rw
 
   # Example backend service (optional)
-  # Pin exacto (no :latest): mismo criterio que la imagen gestionada (v3.3.2).
+  # Exact pin (no :latest): same criteria as the managed image (v3.3.2).
   example-app:
     image: ${EXAMPLE_APP_IMAGE:-containous/whoami:v1.5.0}
     container_name: example-app
@@ -86,26 +86,26 @@ services:
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
     ports:
-      # Expuesto solo en localhost por seguridad
+      # Exposed only on localhost for security
       - "127.0.0.1:8080:8080"
     networks:
       - caddy-network
     volumes:
-      # Volúmenes con permisos de escritura exclusivos para la UI
+      # Volumes with write permissions exclusive to the UI
       - caddy-ui-config:/ui-managed:rw
       - caddy-ui-backups:/backups:rw
-      # Montaje de solo lectura para consumir los logs de Caddy
+      # Read-only mount to consume Caddy logs
       - caddy_data:/data:ro
-      # Caddyfile base de solo lectura, necesario para el reload real (POST /load)
+      # Read-only base Caddyfile, required for the real reload (POST /load)
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     environment:
-      # Token de autenticación de la UI (inyectar desde el entorno/secrets manager)
+      # UI authentication token (inject from the environment/secrets manager)
       - CADDY_UI_TOKEN=${CADDY_UI_TOKEN:-}
-      # Caddy Admin API interna
+      # Internal Caddy Admin API
       - CADDY_ADMIN_URL=${CADDY_ADMIN_URL:-http://caddy-waf:2019}
-      # Ruta del Caddyfile que se envía a POST /load
+      # Caddyfile path sent to POST /load
       - CADDY_UI_CADDYFILE=${CADDY_UI_CADDYFILE:-/etc/caddy/Caddyfile}
-      # Rutas y retención
+      # Paths and retention
       - CADDY_UI_MANAGED_DIR=${CADDY_UI_MANAGED_DIR:-/ui-managed}
       - CADDY_UI_INCLUDE_DIR=${CADDY_UI_INCLUDE_DIR:-/etc/caddy/ui-managed}
       - CADDY_UI_BACKUP_DIR=${CADDY_UI_BACKUP_DIR:-/backups}

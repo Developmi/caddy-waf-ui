@@ -14,33 +14,34 @@ import (
 )
 
 func main() {
-	// 1. Inicializar las bases: Logger estructurado JSON a stdout (NIST AU-12)
+	// 1. Initialize the foundations: structured JSON logger to stdout (NIST AU-12)
 	logs.Setup()
 
-	// 2. Leer configuración de entorno para el puerto de escucha
-	// (centralizado en config, hallazgo J5-3)
+	// 2. Read the environment configuration for the listening port
+	// (centralized in config, finding J5-3)
 	bindAddr := config.BindAddr()
 
-	// 3. Ensamblar los grupos de rutas (task 2.7 + rate limiting S4):
-	//    - público: login (GET/POST /login) y assets estáticos (/static/:
-	//      pico.min.css, app.css, app.js - sin sesión, no contienen datos
-	//      sensibles), sin autenticación. El limiter de login (ratelimit.Login)
-	//      envuelve el mux público limitando SOLO el POST (RL-1): GET /login
-	//      queda libre y la exclusión de RL-3 cae del montaje (/static/,
-	//      /health y las páginas SSR nunca se envuelven).
-	//    - páginas SSR: GET / (tabs) + mutaciones POST /sites/{domain}/... +
-	//      POST /logout, protegidas por sesión (cookie o Bearer, D3) y CSRF
-	//      double-submit (D1). El orden Session(CSRF(...)) hace que un
-	//      visitante sin sesión sea redirigido a /login antes del chequeo CSRF.
-	//    - API RESTful: /api/*, Bearer-pura (sin cambios, Fase 1), con el
-	//      limiter ratelimit.API FUERA de auth (D4): las probes sin token
-	//      queman presupuesto y el 429 corta antes de auth/CSRF/RequestLogger
-	//      (sin Set-Cookie ni inundación de ui_request).
-	//    - /health: público sin auth (healthchecks del contenedor).
-	//    logs.RequestLogger va DENTRO de auth (solo requests autenticados se
-	//    loguean como ui_request, AU-12; /login y el tráfico anónimo nunca) y
-	//    FUERA de CSRF (los rechazos CSRF autenticados, 403, también se
-	//    registran). /login nunca pasa por RequestLogger.
+	// 3. Assemble the route groups (task 2.7 + rate limiting S4):
+	//    - public: login (GET/POST /login) and static assets (/static/:
+	//      pico.min.css, app.css, app.js - without session, no sensitive
+	//      data), without authentication. The login limiter (ratelimit.Login)
+	//      wraps the public mux limiting ONLY the POST (RL-1): GET /login
+	//      stays free and the RL-3 exclusion falls from the mounting
+	//      (/static/, /health and the SSR pages are never wrapped).
+	//    - SSR pages: GET / (tabs) + POST /sites/{domain}/... mutations +
+	//      POST /logout, protected by session (cookie or Bearer, D3) and
+	//      CSRF double-submit (D1). The Session(CSRF(...)) order makes a
+	//      visitor without a session be redirected to /login before the CSRF
+	//      check.
+	//    - RESTful API: /api/*, Bearer-only (unchanged, Phase 1), with the
+	//      ratelimit.API limiter OUTSIDE auth (D4): token-less probes burn
+	//      budget and the 429 cuts before auth/CSRF/RequestLogger (no
+	//      Set-Cookie nor ui_request flooding).
+	//    - /health: public without auth (container healthchecks).
+	//    logs.RequestLogger goes INSIDE auth (only authenticated requests are
+	//    logged as ui_request, AU-12; /login and anonymous traffic never) and
+	//    OUTSIDE CSRF (authenticated CSRF rejections, 403, are also
+	//    recorded). /login never passes through RequestLogger.
 	public := ui.NewLoginMux()
 	pages := auth.Session(logs.RequestLogger(auth.CSRF(ui.NewPagesMux())))
 	api := ratelimit.API(auth.Middleware(logs.RequestLogger(ui.NewRouter())))
@@ -52,28 +53,28 @@ func main() {
 	mux.Handle("/api/", api)
 	mux.Handle("/health", ui.HealthHandler())
 
-	slog.Info("iniciando Caddy WAF UI", "bind", bindAddr)
+	slog.Info("starting Caddy WAF UI", "bind", bindAddr)
 
-	// 4. Levantar el servidor HTTP: la CSP (ui.SecurityHeaders) envuelve el
-	// mux completo, así TODAS las respuestas llevan las cabeceras de
-	// seguridad. newServer fija los límites del servidor (SH-1).
+	// 4. Start the HTTP server: the CSP (ui.SecurityHeaders) wraps the full
+	// mux, so ALL the responses carry the security headers. newServer sets
+	// the server limits (SH-1).
 	srv := newServer(bindAddr, ui.SecurityHeaders(mux))
 	if err := srv.ListenAndServe(); err != nil {
-		slog.Error("fallo al iniciar el servidor", "error", err)
+		slog.Error("failed to start the server", "error", err)
 		os.Exit(1)
 	}
 }
 
-// newServer construye el *http.Server con los límites de hardening SH-1:
-//   - ReadHeaderTimeout 5s: tope para la lectura de headers (mitiga slowloris,
-//     G114; se mantiene el valor previo).
-//   - WriteTimeout 30s: cubre la cadena admin de Caddy (2 x 10s) con margen.
-//   - IdleTimeout 60s: margen sobre el healthcheck del contenedor (30s).
-//   - MaxHeaderBytes 1 MiB: tope de tamaño de cabeceras por request.
+// newServer builds the *http.Server with the SH-1 hardening limits:
+//   - ReadHeaderTimeout 5s: cap for the header read (mitigates slowloris,
+//     G114; the previous value is kept).
+//   - WriteTimeout 30s: covers the Caddy admin chain (2 x 10s) with margin.
+//   - IdleTimeout 60s: margin over the container healthcheck (30s).
+//   - MaxHeaderBytes 1 MiB: size cap of the headers per request.
 //
-// El helper NO ensambla muxes: recibe el handler ya armado (con
-// ui.SecurityHeaders envolviendo el mux) y la dirección de escucha; el
-// ensamblado de rutas vive en main().
+// The helper does NOT assemble muxes: it receives the already assembled
+// handler (with ui.SecurityHeaders wrapping the mux) and the listening
+// address; the route assembly lives in main().
 func newServer(addr string, h http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,

@@ -1,12 +1,13 @@
-// Package config centraliza la lectura de configuración por entorno
-// (convención D2): los nombres de variable y sus defaults viven en un único
-// lugar en lugar de repetirse por paquete (hallazgo J5-3). Los defaults son
-// idénticos a los históricos: /ui-managed, /backups, /data/logs/coraza-audit.log.
+// Package config centralizes environment-based configuration reads
+// (convention D2): the variable names and their defaults live in a single
+// place instead of being repeated per package (finding J5-3). The defaults
+// are identical to the historical ones: /ui-managed, /backups,
+// /data/logs/coraza-audit.log.
 //
-// Cada helper relee el entorno en CADA llamada a propósito: la configuración
-// se lee por request (decisión D2) y los tests cambian variables por test con
-// t.Setenv. Un caché con sync.Once congelaría el primer valor leído y rompería
-// ambos contratos.
+// Each helper deliberately re-reads the environment on EVERY call:
+// configuration is read per request (decision D2), and tests change variables
+// per test with t.Setenv. A sync.Once cache would freeze the first value read
+// and break both contracts.
 package config
 
 import (
@@ -26,7 +27,7 @@ const (
 	defaultIncludeDir = "/etc/caddy/ui-managed"
 )
 
-// envOr devuelve el valor de la variable key, o fallback si está vacía.
+// envOr returns the value of the key variable, or fallback if it is empty.
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -34,20 +35,20 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-// ManagedDir devuelve CADDY_UI_MANAGED_DIR (default /ui-managed): el
-// directorio donde la UI escribe los overlays gestionados.
+// ManagedDir returns CADDY_UI_MANAGED_DIR (default /ui-managed): the
+// directory where the UI writes the managed overlays.
 func ManagedDir() string {
 	return envOr("CADDY_UI_MANAGED_DIR", defaultManagedDir)
 }
 
-// BackupDir devuelve CADDY_UI_BACKUP_DIR (default /backups): la raíz de los
-// snapshots de configuración.
+// BackupDir returns CADDY_UI_BACKUP_DIR (default /backups): the root of the
+// configuration snapshots.
 func BackupDir() string {
 	return envOr("CADDY_UI_BACKUP_DIR", defaultBackupDir)
 }
 
-// BackupKeep devuelve CADDY_UI_BACKUP_KEEP (default 10): el límite de
-// retención de snapshots por dominio y tipo.
+// BackupKeep returns CADDY_UI_BACKUP_KEEP (default 10): the snapshot
+// retention limit per domain and type.
 func BackupKeep() int {
 	if k, err := strconv.Atoi(os.Getenv("CADDY_UI_BACKUP_KEEP")); err == nil && k > 0 {
 		return k
@@ -55,46 +56,46 @@ func BackupKeep() int {
 	return defaultBackupKeep
 }
 
-// AuditLogPath devuelve CADDY_UI_AUDIT_LOG (default
-// /data/logs/coraza-audit.log): el audit log de Coraza que lee el explorador.
+// AuditLogPath returns CADDY_UI_AUDIT_LOG (default
+// /data/logs/coraza-audit.log): the Coraza audit log read by the explorer.
 func AuditLogPath() string {
 	return envOr("CADDY_UI_AUDIT_LOG", defaultAuditLog)
 }
 
-// CaddyfilePath devuelve CADDY_UI_CADDYFILE (default /etc/caddy/Caddyfile):
-// el Caddyfile que se envía a la Admin API en cada recarga.
+// CaddyfilePath returns CADDY_UI_CADDYFILE (default /etc/caddy/Caddyfile):
+// the Caddyfile sent to the Admin API on each reload.
 func CaddyfilePath() string {
 	return envOr("CADDY_UI_CADDYFILE", defaultCaddyfile)
 }
 
-// AdminURL devuelve CADDY_ADMIN_URL (default http://caddy-waf:2019): la
-// Admin API de Caddy.
+// AdminURL returns CADDY_ADMIN_URL (default http://caddy-waf:2019): Caddy's
+// Admin API.
 func AdminURL() string {
 	return envOr("CADDY_ADMIN_URL", defaultAdminURL)
 }
 
-// IncludeDir devuelve CADDY_UI_INCLUDE_DIR (default /etc/caddy/ui-managed):
-// la vista de CADDY del directorio de overlays, usada en la directiva Include
-// de los overlays generados (hallazgo J5-1). Es independiente de ManagedDir:
-// la UI y Caddy montan el mismo volumen en puntos distintos del sistema de
-// archivos de cada contenedor (INTEGRATION.md §3).
+// IncludeDir returns CADDY_UI_INCLUDE_DIR (default /etc/caddy/ui-managed):
+// Caddy's view of the overlays directory, used in the Include directive of
+// the generated overlays (finding J5-1). It is independent of ManagedDir: the
+// UI and Caddy mount the same volume at different points of each container's
+// filesystem (INTEGRATION.md §3).
 func IncludeDir() string {
 	return envOr("CADDY_UI_INCLUDE_DIR", defaultIncludeDir)
 }
 
-// BindAddr devuelve CADDY_UI_BIND (default 0.0.0.0:8080): la dirección de
-// escucha del servidor HTTP de la UI.
+// BindAddr returns CADDY_UI_BIND (default 0.0.0.0:8080): the listen address
+// of the UI's HTTP server.
 func BindAddr() string {
 	return envOr("CADDY_UI_BIND", defaultBindAddr)
 }
 
-// LogLevel devuelve CADDY_UI_LOG_LEVEL (default "info"): el nivel del logger.
+// LogLevel returns CADDY_UI_LOG_LEVEL (default "info"): the logger level.
 func LogLevel() string {
 	return envOr("CADDY_UI_LOG_LEVEL", defaultLogLevel)
 }
 
-// Token devuelve CADDY_UI_TOKEN (vacío si no está configurado: el middleware
-// de sesión bloquea todo acceso sin token válido).
+// Token returns CADDY_UI_TOKEN (empty when unset: the session middleware
+// blocks all access without a valid token).
 func Token() string {
 	return os.Getenv("CADDY_UI_TOKEN")
 }

@@ -13,8 +13,8 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/ui"
 )
 
-// adminStub simula la Admin API de Caddy (:2019) para que la cadena de
-// servicio complete el paso de recarga sin tocar un Caddy real.
+// adminStub simulates the Caddy Admin API (:2019) so the service chain
+// completes the reload step without touching a real Caddy.
 type adminStub struct {
 	reloads int
 }
@@ -30,15 +30,16 @@ func (s *adminStub) handler(t *testing.T) http.Handler {
 			return
 		}
 		if r.Method != http.MethodPost || r.URL.Path != "/load" {
-			t.Errorf("el stub esperaba POST /load, recibió %s %s", r.Method, r.URL.Path)
+			t.Errorf("the stub expected POST /load, received %s %s", r.Method, r.URL.Path)
 		}
 		s.reloads++
 		w.WriteHeader(http.StatusOK)
 	})
 }
 
-// setupEnv prepara el entorno completo: token, directorios temporales, un
-// Caddyfile y el stub de la Admin API. Devuelve el mux protegido por Bearer.
+// setupEnv prepares the complete environment: token, temp directories, a
+// Caddyfile and the stub of the Admin API. It returns the mux protected by
+// Bearer.
 func setupEnv(t *testing.T, admin *adminStub) http.Handler {
 	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
 
@@ -46,14 +47,14 @@ func setupEnv(t *testing.T, admin *adminStub) http.Handler {
 	managedDir := filepath.Join(tmp, "ui-managed")
 	backupDir := filepath.Join(tmp, "backups")
 	if err := os.MkdirAll(managedDir, 0750); err != nil {
-		t.Fatalf("fallo creando managedDir: %v", err)
+		t.Fatalf("failed creating managedDir: %v", err)
 	}
 	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
 	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
 
 	caddyfile := filepath.Join(tmp, "Caddyfile")
 	if err := os.WriteFile(caddyfile, []byte("example.com {\n}\n"), 0600); err != nil {
-		t.Fatalf("fallo escribiendo Caddyfile: %v", err)
+		t.Fatalf("failed to write test Caddyfile: %v", err)
 	}
 	t.Setenv("CADDY_UI_CADDYFILE", caddyfile)
 
@@ -67,7 +68,7 @@ func setupEnv(t *testing.T, admin *adminStub) http.Handler {
 func bearerRequest(t *testing.T, method, path string, body []byte) *http.Request {
 	req, err := http.NewRequest(method, path, bytes.NewReader(body))
 	if err != nil {
-		t.Fatalf("fallo creando request: %v", err)
+		t.Fatalf("failed creating request: %v", err)
 	}
 	req.Header.Set("Authorization", "Bearer super-secret-token")
 	return req
@@ -76,13 +77,14 @@ func bearerRequest(t *testing.T, method, path string, body []byte) *http.Request
 func TestAPISetModeRequiresBearer(t *testing.T) {
 	handler := setupEnv(t, &adminStub{})
 
-	// El middleware Bearer rechaza antes de llegar al mux: 401 sin cabecera.
+	// The Bearer middleware rejects before reaching the mux: 401 without a
+	// header.
 	req, _ := http.NewRequest(http.MethodPut, "/api/sites/test.com/mode", bytes.NewBufferString(`{"mode":"On"}`))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusUnauthorized {
-		t.Errorf("se esperaba 401 sin Bearer, se obtuvo %d", recorder.Code)
+		t.Errorf("expected 401 without Bearer, got %d", recorder.Code)
 	}
 }
 
@@ -95,32 +97,33 @@ func TestAPISetModeSuccessRegeneratesOverlay(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d (%s)", recorder.Code, recorder.Body.String())
+		t.Fatalf("expected 200, got %d (%s)", recorder.Code, recorder.Body.String())
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"success"`) {
-		t.Errorf("el cuerpo no confirma el éxito: %s", recorder.Body.String())
+		t.Errorf("the body does not confirm the success: %s", recorder.Body.String())
 	}
 
-	// El overlay fue regenerado con el modo nuevo y el dominio real en la cabecera.
+	// The overlay was regenerated with the new mode and the real domain in
+	// the header.
 	overlay, err := os.ReadFile(filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf"))
 	if err != nil {
-		t.Fatalf("no se generó el overlay waf-example_com.conf: %v", err)
+		t.Fatalf("the waf-example_com.conf overlay was not generated: %v", err)
 	}
 	if !strings.Contains(string(overlay), "SecRuleEngine On") {
-		t.Errorf("el overlay no contiene el modo enviado:\n%s", overlay)
+		t.Errorf("the overlay does not contain the sent mode:\n%s", overlay)
 	}
 	if !strings.Contains(string(overlay), "# domain: example.com") {
-		t.Errorf("el overlay no conserva el dominio en la cabecera:\n%s", overlay)
+		t.Errorf("the overlay does not keep the domain in the header:\n%s", overlay)
 	}
 
 	if admin.reloads != 1 {
-		t.Errorf("se esperaba exactamente 1 recarga de Caddy, se hicieron %d", admin.reloads)
+		t.Errorf("expected exactly 1 Caddy reload, %d made", admin.reloads)
 	}
 }
 
-// TestAPISetExclusionsInvalidPayloadReturns400: exclusiones que no pasan la
-// validación son un payload de cliente inválido → 400 a través del stack
-// completo (Bearer → router → handler), sin recargar Caddy (SUGGESTION #4).
+// TestAPISetExclusionsInvalidPayloadReturns400: exclusions that do not pass
+// the validation are an invalid client payload → 400 through the full stack
+// (Bearer → router → handler), without reloading Caddy (SUGGESTION #4).
 func TestAPISetExclusionsInvalidPayloadReturns400(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupEnv(t, admin)
@@ -130,15 +133,15 @@ func TestAPISetExclusionsInvalidPayloadReturns400(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con exclusión inválida, se obtuvo %d (%s)", recorder.Code, recorder.Body.String())
+		t.Fatalf("expected 400 with an invalid exclusion, got %d (%s)", recorder.Code, recorder.Body.String())
 	}
 	if admin.reloads != 0 {
-		t.Errorf("no debe recargarse Caddy con payload inválido, se hicieron %d recargas", admin.reloads)
+		t.Errorf("Caddy must not be reloaded with an invalid payload, %d reloads made", admin.reloads)
 	}
 }
 
-// TestAPISetIPRulesInvalidPayloadReturns400: una entrada IP no-CIDR es un
-// payload de cliente inválido → 400, no un fallo de servidor (SUGGESTION #4).
+// TestAPISetIPRulesInvalidPayloadReturns400: a non-CIDR IP entry is an
+// invalid client payload → 400, not a server failure (SUGGESTION #4).
 func TestAPISetIPRulesInvalidPayloadReturns400(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupEnv(t, admin)
@@ -148,56 +151,56 @@ func TestAPISetIPRulesInvalidPayloadReturns400(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con entrada IP inválida, se obtuvo %d (%s)", recorder.Code, recorder.Body.String())
+		t.Fatalf("expected 400 with an invalid IP entry, got %d (%s)", recorder.Code, recorder.Body.String())
 	}
 	if admin.reloads != 0 {
-		t.Errorf("no debe recargarse Caddy con payload inválido, se hicieron %d recargas", admin.reloads)
+		t.Errorf("Caddy must not be reloaded with an invalid payload, %d reloads made", admin.reloads)
 	}
 }
 
 func TestAPIFlatEndpointRemoved(t *testing.T) {
 	handler := setupEnv(t, &adminStub{})
 
-	// El contrato viejo (plano) ya no existe: cualquier verbo/forma → 404.
+	// The old (flat) contract no longer exists: any verb/shape → 404.
 	req := bearerRequest(t, http.MethodPost, "/api/mode?domain=example.com", []byte(`{"mode":"On"}`))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusNotFound {
-		t.Errorf("el endpoint plano /api/mode debe devolver 404, se obtuvo %d", recorder.Code)
+		t.Errorf("the flat /api/mode endpoint must return 404, got %d", recorder.Code)
 	}
 }
 
 func TestAPIHealth(t *testing.T) {
-	// /health es público y se monta en main.go FUERA del mux autenticado
-	// (F1: la ruta ya no vive en el router de la API): el handler se ejercita
-	// directamente, sin Bearer - los healthchecks del contenedor no llevan
-	// credenciales.
+	// /health is public and is mounted in main.go OUTSIDE the authenticated
+	// mux (F1: the route no longer lives in the API router): the handler is
+	// exercised directly, without Bearer - the container healthchecks do not
+	// carry credentials.
 	rec := httptest.NewRecorder()
 	ui.HealthHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("se esperaba 200 en /health, se obtuvo %d", rec.Code)
+		t.Errorf("expected 200 in /health, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
-		t.Errorf("el cuerpo de /health no es el esperado: %s", rec.Body.String())
+		t.Errorf("the body of /health is not the expected one: %s", rec.Body.String())
 	}
 }
 
-// seedIntegrationSnapshot siembra un snapshot en el dir de backups del slug.
+// seedIntegrationSnapshot seeds a snapshot in the backups dir of the slug.
 func seedIntegrationSnapshot(t *testing.T, domain, name, content string) {
 	t.Helper()
 	slugDir := filepath.Join(os.Getenv("CADDY_UI_BACKUP_DIR"), domain)
 	if err := os.MkdirAll(slugDir, 0750); err != nil {
-		t.Fatalf("fallo creando dir de backups: %v", err)
+		t.Fatalf("failed creating backups dir: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(slugDir, name), []byte(content), 0640); err != nil {
-		t.Fatalf("fallo sembrando snapshot %s: %v", name, err)
+		t.Fatalf("failed seeding snapshot %s: %v", name, err)
 	}
 }
 
-// TestAPIGetBackupsListsSnapshots: GET /api/sites/{domain}/backups devuelve
-// los snapshots del dominio como JSON (spec backup-recovery: backups listados).
+// TestAPIGetBackupsListsSnapshots: GET /api/sites/{domain}/backups returns
+// the snapshots of the domain as JSON (backup-recovery spec: backups listed).
 func TestAPIGetBackupsListsSnapshots(t *testing.T) {
 	handler := setupEnv(t, &adminStub{})
 	seedIntegrationSnapshot(t, "example_com", "2020-01-01T00-00-00Z.waf.conf", "waf-2020")
@@ -208,19 +211,19 @@ func TestAPIGetBackupsListsSnapshots(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d", recorder.Code)
+		t.Fatalf("expected 200, got %d", recorder.Code)
 	}
 	body := recorder.Body.String()
 	if !strings.Contains(body, "2020-01-01T00-00-00Z") || !strings.Contains(body, "waf") || !strings.Contains(body, "exclusions") {
-		t.Errorf("el listado debe incluir los snapshots sembrados: %s", body)
+		t.Errorf("the listing must include the seeded snapshots: %s", body)
 	}
 	if !strings.Contains(body, `"Size":8`) {
-		t.Errorf("el listado debe incluir el tamaño real del archivo: %s", body)
+		t.Errorf("the listing must include the real file size: %s", body)
 	}
 }
 
-// TestAPIGetBackupsEmptyReturnsEmptyArray: sin backups el endpoint responde
-// 200 con un array vacío (estado vacío honesto, nunca 500).
+// TestAPIGetBackupsEmptyReturnsEmptyArray: without backups the endpoint
+// responds 200 with an empty array (honest empty state, never 500).
 func TestAPIGetBackupsEmptyReturnsEmptyArray(t *testing.T) {
 	handler := setupEnv(t, &adminStub{})
 
@@ -229,50 +232,50 @@ func TestAPIGetBackupsEmptyReturnsEmptyArray(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("sin backups se esperaba 200, se obtuvo %d", recorder.Code)
+		t.Fatalf("without backups expected 200, got %d", recorder.Code)
 	}
 	if !strings.Contains(recorder.Body.String(), "[]") {
-		t.Errorf("sin backups el cuerpo debe ser un array vacío: %s", recorder.Body.String())
+		t.Errorf("without backups the body must be an empty array: %s", recorder.Body.String())
 	}
 }
 
-// TestAPIRollbackRestoresSnapshot: POST /api/sites/{domain}/rollback restaura
-// los bytes del snapshot indicado sobre el overlay y recarga Caddy.
+// TestAPIRollbackRestoresSnapshot: POST /api/sites/{domain}/rollback restores
+// the bytes of the given snapshot over the overlay and reloads Caddy.
 func TestAPIRollbackRestoresSnapshot(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupEnv(t, admin)
 
 	overlayPath := filepath.Join(os.Getenv("CADDY_UI_MANAGED_DIR"), "waf-example_com.conf")
-	if err := os.WriteFile(overlayPath, []byte("estado actual"), 0640); err != nil {
-		t.Fatalf("fallo sembrando overlay: %v", err)
+	if err := os.WriteFile(overlayPath, []byte("current state"), 0640); err != nil {
+		t.Fatalf("failed seeding overlay: %v", err)
 	}
-	seedIntegrationSnapshot(t, "example_com", "2020-01-01T00-00-00Z.waf.conf", "estado restaurado")
+	seedIntegrationSnapshot(t, "example_com", "2020-01-01T00-00-00Z.waf.conf", "restored state")
 
 	req := bearerRequest(t, http.MethodPost, "/api/sites/example.com/rollback", []byte(`{"backup":"2020-01-01T00-00-00Z.waf.conf"}`))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("se esperaba 200, se obtuvo %d (%s)", recorder.Code, recorder.Body.String())
+		t.Fatalf("expected 200, got %d (%s)", recorder.Code, recorder.Body.String())
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"success"`) {
-		t.Errorf("el cuerpo no confirma el éxito: %s", recorder.Body.String())
+		t.Errorf("the body does not confirm the success: %s", recorder.Body.String())
 	}
 
 	overlay, err := os.ReadFile(overlayPath)
 	if err != nil {
-		t.Fatalf("no se restauró el overlay: %v", err)
+		t.Fatalf("the overlay was not restored: %v", err)
 	}
-	if string(overlay) != "estado restaurado" {
-		t.Errorf("el overlay debe contener los bytes del snapshot: %q", overlay)
+	if string(overlay) != "restored state" {
+		t.Errorf("the overlay must contain the bytes of the snapshot: %q", overlay)
 	}
 	if admin.reloads != 1 {
-		t.Errorf("se esperaba exactamente 1 recarga de Caddy, se hicieron %d", admin.reloads)
+		t.Errorf("expected exactly 1 Caddy reload, %d made", admin.reloads)
 	}
 }
 
-// TestAPIRollbackInvalidBackupRejected: un nombre de snapshot inseguro se
-// rechaza con 400 y sin recargar Caddy (fail-fast antes de mutar).
+// TestAPIRollbackInvalidBackupRejected: an unsafe snapshot name is rejected
+// with 400 and without reloading Caddy (fail-fast before mutating).
 func TestAPIRollbackInvalidBackupRejected(t *testing.T) {
 	admin := &adminStub{}
 	handler := setupEnv(t, admin)
@@ -282,9 +285,9 @@ func TestAPIRollbackInvalidBackupRejected(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("se esperaba 400 con snapshot inválido, se obtuvo %d", recorder.Code)
+		t.Fatalf("expected 400 with an invalid snapshot, got %d", recorder.Code)
 	}
 	if admin.reloads != 0 {
-		t.Errorf("no debe recargarse Caddy con snapshot inválido, se hicieron %d recargas", admin.reloads)
+		t.Errorf("Caddy must not be reloaded with an invalid snapshot, %d reloads made", admin.reloads)
 	}
 }
