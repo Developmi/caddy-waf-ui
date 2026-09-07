@@ -33,6 +33,11 @@ jobs:
       - name: Vet
         run: make vet
 
+      # CI-1: govulncheck pinned via tools/versions.mk (GOVULNCHECK_VERSION),
+      # never @latest; installed by "make tools" above. Findings fail the job.
+      - name: Vulnerability scan (govulncheck)
+        run: make vuln
+
       - name: Tests (race detector)
         run: make test-race
 
