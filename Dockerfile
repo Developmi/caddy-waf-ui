@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o caddy-waf-ui ./cmd/ser
 # Stage 2: Final image (runtime)
 # Alpine 3.23.5: same line as the caddy:2.11.4 base (caddy-waf v3.3.2 image).
 # NEVER use :latest - immutable pin, aligned with the ecosystem.
-FROM alpine:3.23.5
+FROM alpine:3.24.1
 
 # Static OCI metadata (supply chain: trace the artifact origin and license)
 LABEL org.opencontainers.image.title="caddy-waf-ui"
