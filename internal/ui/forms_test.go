@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -102,6 +104,77 @@ func TestHandleLogout(t *testing.T) {
 	}
 	if !strings.Contains(rec.Header().Get("Set-Cookie"), "CADDY_UI_TOKEN=") {
 		t.Errorf("logout debe emitir cookie de expiración: %q", rec.Header().Get("Set-Cookie"))
+	}
+}
+
+// TestHandleLoginInvalidTokenEmitsSecurityWarn (LE-1/D10): un POST /login con
+// token inválido emite un slog.Warn de seguridad que incluye el RemoteAddr
+// del cliente, y conserva el PRG 303 ?flash=invalid_login. El evento usa
+// slog directo (msg "login rechazado", key remote_ip): NUNCA se loguea como
+// ui_request (D2) ni se registra material de la credencial.
+func TestHandleLoginInvalidTokenEmitsSecurityWarn(t *testing.T) {
+	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
+
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})
+	prev := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	defer slog.SetDefault(prev)
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("token=token-incorrecto"))
+	req.RemoteAddr = "203.0.113.77:5555"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	NewLoginMux().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("se esperaba 303 (PRG), se obtuvo %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "flash=invalid_login") {
+		t.Errorf("se esperaba flash=invalid_login, se obtuvo %q", loc)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "level=WARN") || !strings.Contains(out, "login rechazado") {
+		t.Errorf("el login fallido debe emitir slog.Warn \"login rechazado\", buffer:\n%s", out)
+	}
+	if !strings.Contains(out, "remote_ip=203.0.113.77:5555") {
+		t.Errorf("el Warn debe incluir remote_ip con el RemoteAddr del cliente, buffer:\n%s", out)
+	}
+	if strings.Contains(out, "token-incorrecto") {
+		t.Errorf("la credencial provista no debe aparecer en el log, buffer:\n%s", out)
+	}
+}
+
+// TestHandleLoginSuccessSilentNoWarn (LE-1): el login válido NO emite el
+// evento de seguridad (éxito silencioso) ni credencial alguna en el log.
+func TestHandleLoginSuccessSilentNoWarn(t *testing.T) {
+	t.Setenv("CADDY_UI_TOKEN", "super-secret-token")
+
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})
+	prev := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	defer slog.SetDefault(prev)
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("token=super-secret-token"))
+	req.RemoteAddr = "203.0.113.77:5555"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	NewLoginMux().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("se esperaba 303, se obtuvo %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/" {
+		t.Errorf("se esperaba redirección a /, se obtuvo %q", loc)
+	}
+
+	out := buf.String()
+	if out != "" {
+		t.Errorf("el login válido debe ser silencioso (sin Warn ni credenciales), buffer:\n%s", out)
 	}
 }
 
