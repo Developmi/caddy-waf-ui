@@ -36,7 +36,11 @@ LABEL org.opencontainers.image.licenses="MIT"
 # crear el usuario no root de la UI y los directorios gestionados con ownership del usuario:
 # los named volumes heredan el ownership del directorio en el primer montaje, evitando errores de
 # permisos (EACCES) en ui-managed/ y backups/. Versiones de paquetes pineadas (DL3018).
-RUN apk --no-cache add ca-certificates=20260611-r0 tzdata=2026c-r0 \
+#
+# PIN TRANSITORIO — openssl=3.5.8-r0 elimina CVE-2026-14456 (OpenSSL 3.5.7-r0 → 3.5.8-r0; la versión
+# corregida ya está disponible en APKINDEX v3.23/main y v3.24/main). RETIRAR este pin cuando alpine
+# 3.23.6 o 3.24.2 publiquen la versión corregida.
+RUN apk --no-cache add ca-certificates=20260611-r0 openssl=3.5.8-r0 tzdata=2026c-r0 \
     && adduser -D -g '' uiuser \
     && mkdir -p /ui-managed /backups \
     && chown -R uiuser:uiuser /ui-managed /backups
