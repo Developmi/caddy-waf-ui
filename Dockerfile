@@ -1,7 +1,7 @@
 # Stage 1: Build (builder)
 # Exact toolchain pin: go.mod declares go 1.26.6 (GOTOOLCHAIN=auto does not
 # download versions on each build - reproducibility, no float).
-FROM golang:1.26.6-alpine AS builder
+FROM golang:1.27.1-alpine AS builder
 
 # Enable Go modules and configure the working directory
 ENV GO111MODULE=on
