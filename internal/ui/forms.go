@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -26,14 +27,17 @@ func redirectAfterForm(w http.ResponseWriter, r *http.Request, flash string) {
 }
 
 // HandleLogin procesa POST /login (ruta pública): valida el token y fija la
-// cookie de sesión (D3). El fallo redirige al login con flash=invalid_login
-// (PRG, sin estado mutado).
+// cookie de sesión (D3). El fallo emite un evento de seguridad (LE-1/D10:
+// slog.Warn con el RemoteAddr, NUNCA como ui_request - D2 - y sin material de
+// la credencial; el éxito es silencioso) y redirige al login con
+// flash=invalid_login (PRG, sin estado mutado).
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if auth.Login(w, r.FormValue("token")) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
+	slog.Warn("login rechazado", "remote_ip", r.RemoteAddr)
 	http.Redirect(w, r, "/login?flash=invalid_login", http.StatusSeeOther)
 }
 

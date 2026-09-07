@@ -76,6 +76,8 @@ Internet → Caddy (base Caddyfile, Ansible-owned, :ro)
 - Caddy Admin API reachable at `caddy:2019` (Docker internal network only)
 - Tailscale or equivalent for UI access (UI binds to `0.0.0.0:8080` by default)
 
+> **UI bind note:** the default `0.0.0.0:8080` listener is reachable by any client on the LAN — over plain HTTP, because the UI does not terminate TLS itself. The session cookie's `Secure` flag only applies in a secure context (HTTPS; loopback is exempt, LAN addresses are not): over a LAN IP, browsers do not honor the cookie and the bearer token used by `/api/*` crosses the wire in cleartext. If you do not need LAN-wide access, narrow the listener — `CADDY_UI_BIND=127.0.0.1:8080` for loopback-only access (recommended; `Secure` cookies keep working over HTTP loopback), or bind to your Tailscale interface IP (`tailscale ip -4`) so remote access travels only over the encrypted Tailnet. The Tailscale flow above remains valid.
+
 ---
 
 ## Quick Start

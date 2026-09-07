@@ -41,7 +41,7 @@ func BackupDirPath(backupDir, domainName string) string {
 
 // OverlayPath devuelve la ruta del overlay del tipo indicado
 // (FileTypeWAF | FileTypeExclusions | FileTypeIPRules); error si el tipo es
-// desconocido. Centraliza el mapeo tipo → archivo conf que comparten Backup y
+// desconocido. Centraliza el mapeo tipo → archivo conf que sharen Backup y
 // RestoreBackup.
 func OverlayPath(managedDir, fileType, domainName string) (string, error) {
 	switch fileType {

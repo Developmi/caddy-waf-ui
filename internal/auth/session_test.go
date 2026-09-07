@@ -50,6 +50,9 @@ func TestLoginSetsSessionCookieFlags(t *testing.T) {
 	if c.Path != "/" {
 		t.Errorf("la cookie debe tener Path=/, se obtuvo %q", c.Path)
 	}
+	if c.MaxAge != 43200 {
+		t.Errorf("la cookie de sesión debe expirar a las 12h (Max-Age=43200, SC-1), se obtuvo %d", c.MaxAge)
+	}
 }
 
 func TestLoginRejectsWrongToken(t *testing.T) {

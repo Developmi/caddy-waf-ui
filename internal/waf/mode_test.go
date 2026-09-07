@@ -12,7 +12,7 @@ import (
 // conservar (S2): se verifican presentes y en orden dentro del bloque.
 // defaultAuditPath es el valor por defecto de CADDY_UI_AUDIT_LOG - los tests
 // pasan la ruta explícitamente (firma pura GenerateSnippet(site, auditPath,
-// includeDir), invariante M4: el overlay y el lector comparten la misma ruta).
+// includeDir), invariante M4: el overlay y el lector sharen la misma ruta).
 // defaultIncludeDir es el valor por defecto de CADDY_UI_INCLUDE_DIR (la vista
 // de Caddy del directorio de overlays, hallazgo J5-1).
 const (

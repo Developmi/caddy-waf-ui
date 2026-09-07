@@ -101,6 +101,37 @@ The mTLS target (identity + `access_control` public keys on Caddy's remote
 admin listener, UI client certificate) removes the reliance on network
 placement alone.
 
+## UI Bind Default - LAN Exposure (SC-8)
+
+The UI listens on `0.0.0.0:8080` by default (SC-8 row of the README "Security
+Model" table). In a bare deployment without a host firewall this exposes the
+UI to every client on the LAN over plain HTTP: the UI does not terminate TLS
+itself — HTTPS is terminated by the reverse proxy in front of it (the
+documented deployment fronts the UI with Caddy `reverse_proxy` + mTLS, or
+restricts host exposure via the compose port mapping).
+
+Why it matters: the session cookie is marked `Secure`, which browsers only
+honor in a secure context (HTTPS; loopback is exempt, LAN addresses are not).
+Served over plain HTTP on a LAN address, the cookie is not honored and the
+bearer token used by `/api/*` crosses the LAN in cleartext — a LAN attacker
+can sniff admin traffic.
+
+Recommended mitigation — narrow the listener when LAN-wide access is not
+needed:
+
+- Loopback-only access (UI and browser on the same host):
+  `CADDY_UI_BIND=127.0.0.1:8080`. `Secure` cookies keep working over HTTP
+  loopback (secure context).
+- Tailnet-only remote access: bind to the Tailscale interface IP
+  (`CADDY_UI_BIND=<tailscale-ip>:8080`, shown by `tailscale ip -4`) — remote
+  traffic then rides the encrypted Tailnet only. The documented Tailscale
+  pattern remains a valid option and is unchanged.
+- TLS fronting: when the UI must be reachable beyond loopback/Tailnet, keep it
+  behind Caddy+mTLS as documented.
+
+The `0.0.0.0:8080` default is intentionally unchanged; exposure is restricted
+per deployment via `CADDY_UI_BIND`.
+
 ## Known Limitations - Auth Notes & Rate Limiting
 
 Documented design decisions, not defects:

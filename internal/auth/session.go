@@ -22,6 +22,12 @@ const sessionCookieName = "CADDY_UI_TOKEN"
 // del secreto: el secreto crudo nunca viaja en el DOM (decisión D1).
 const csrfContext = "csrf"
 
+// sessionMaxAgeSeconds es la vida útil de la cookie de sesión: 12h (SC-1).
+// Con la rotación diaria del token, una cookie capturada conserva validez
+// hasta esa ventana posterior a la rotación — tradeoff aceptado del diseño
+// stateless (sin expiración server-side).
+const sessionMaxAgeSeconds = 43200
+
 // tokenFromEnv devuelve el token configurado (vacío si no está definido).
 // Centralizado en config (hallazgo J5-3).
 func tokenFromEnv() string {
@@ -58,8 +64,8 @@ func HasValidSession(r *http.Request) bool {
 }
 
 // SetSessionCookie fija la cookie de sesión con HttpOnly; Secure;
-// SameSite=Strict y Path=/ (decisión D3: loopback es un contexto seguro, por
-// eso Secure funciona sobre HTTP plano).
+// SameSite=Strict; Path=/ y Max-Age 12h (decisión D3: loopback es un
+// contexto seguro, por eso Secure funciona sobre HTTP plano; SC-1).
 func SetSessionCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
@@ -68,6 +74,7 @@ func SetSessionCookie(w http.ResponseWriter, token string) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
+		MaxAge:   sessionMaxAgeSeconds,
 	})
 }
 
