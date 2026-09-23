@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.1.2] - 2026-09-23
+
+### Fixed
+
+* **CI/CD SBOM Release Asset Upload**: Disabled `upload-release-assets` in `anchore/sbom-action` (`docker-build-scan-sign.yml`) to prevent 403 `Resource not accessible by integration` errors when generating SBOMs. OCI SBOM attestation via Cosign (`cosign attest`) remains active and fully functional.
+* **GHCR Rollback API Compatibility**: Removed invalid `-f confirm=true` flag in the GitHub Actions package version rollback step, aligning with the GitHub REST API DELETE endpoint schema.
+
+### Changed
+
+* **Upstream caddy-waf Alignment**: Updated default `caddy-waf` container image tag from `v3.4.0` to `v3.5.4` across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md` (incorporating coraza-caddy v2.6.1 and zero Trivy findings).
+* **Metadata & Badges**: Synchronized manifest versions and documentation badges to `v1.1.2`.
+
+---
+
 ## [1.1.1] - 2026-09-23
 
 ### Security

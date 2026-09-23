@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---|---|
-| 1.1.x (latest: v1.1.1) | ✅ |
+| 1.1.x (latest: v1.1.2) | ✅ |
 | 1.0.x | ❌ |
 | older releases | ❌ |
 
