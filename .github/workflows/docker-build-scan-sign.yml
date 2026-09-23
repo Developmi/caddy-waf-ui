@@ -13,8 +13,10 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    paths-ignore: ['**.md', 'docs/**']
   pull_request:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
 
 env:
   REGISTRY: ghcr.io
@@ -22,14 +24,20 @@ env:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write # required for keyless Cosign
-  attestations: write
-  security-events: write # required for SARIF upload to GitHub Security tab
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-scan-sign:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # required for keyless Cosign
+      attestations: write
+      security-events: write # required for SARIF upload to GitHub Security tab
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
