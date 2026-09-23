@@ -6,6 +6,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.1.1] - 2026-09-23
+
+### Security
+
+* **Supply Chain Integrity**: Implemented cryptographic SHA256 checksum verification in `tools/install.sh` and `tools/versions.mk` for pre-compiled third-party tool binaries (`actionlint`, `hadolint`, `golangci-lint`), enforcing fail-closed integrity prior to extraction and execution.
+* **Container Hardening**: Defined explicit memory and CPU constraints across all Compose services, added bounded JSON log rotation (`max-size: "10m"`, `max-file: "3"`), and enforced container lockdown directives (`no-new-privileges: true`, `cap_drop: [ALL]`, `tmpfs`) on the `ui-config-init` service.
+* **Workflow Permissions**: Enforced least-privilege scoping in `docker-build-scan-sign.yml` by reducing workflow-level permissions to `contents: read` and scoping write capabilities (`packages`, `id-token`, `attestations`, `security-events`) exclusively to the build and publish job.
+
+### Fixed
+
+* **Dockerfile Package Pins**: Updated pinned Alpine 3.23 package versions (`ca-certificates=20260909-r0`, `tzdata=2026d-r0`) to resolve upstream package repository breakage during Docker image builds while retaining the `openssl=3.5.8-r0` pin for CVE-2026-14456 mitigation.
+
+### Changed
+
+* **CI Efficiency**: Added concurrency groups (`cancel-in-progress: true`) and markdown path filters (`paths-ignore`) to build and lint workflows to eliminate redundant runner consumption.
+* **Documentation & Metadata**: Synchronized badges, manifest versions, and supported security matrices to `v1.1.1`. Translated residual Spanish comments in `.env.example` and aligned non-root user documentation in `AGENTS.md`.
+
+---
+
 ## [1.1.0] - 2026-09-07
 
 ### Security
