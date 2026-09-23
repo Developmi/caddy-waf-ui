@@ -13,6 +13,8 @@ services:
       - NET_BIND_SERVICE
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
+    mem_limit: 512m
+    cpus: 1.0
     ports:
       - "80:80"
       - "443:443"
@@ -47,6 +49,11 @@ services:
       # after recreating the volumes (down -v / first boot).
       ui-config-init:
         condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - caddy-network
 
@@ -59,6 +66,19 @@ services:
     container_name: ui-config-init
     restart: "no"
     command: ["sh", "/init.sh"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    mem_limit: 128m
+    cpus: 0.50
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ./scripts/init-ui-managed.sh:/init.sh:ro
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -71,6 +91,13 @@ services:
     image: ${EXAMPLE_APP_IMAGE:-containous/whoami:v1.5.0}
     container_name: example-app
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.50
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - caddy-network
 
@@ -85,6 +112,8 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
+    mem_limit: 256m
+    cpus: 0.50
     ports:
       # Exposed only on localhost for security
       - "127.0.0.1:8080:8080"
@@ -114,6 +143,11 @@ services:
       - CADDY_UI_BIND=${CADDY_UI_BIND:-0.0.0.0:8080}
       - CADDY_UI_LOG_LEVEL=${CADDY_UI_LOG_LEVEL:-info}
       - CADDY_UI_AUDIT_LOG=${CADDY_UI_AUDIT_LOG:-/data/logs/coraza-audit.log}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       caddy-waf:
         condition: service_healthy
