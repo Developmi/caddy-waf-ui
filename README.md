@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/License-MIT_©_Miguel_Lozano_|_Developmi-blue?style=for-the-badge)](./LICENSE)
 [![Stack](https://img.shields.io/badge/Go_1.26.4-native-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
 [![Security](https://img.shields.io/badge/NIST_SP_800--53-AC--3_|_AU--12_|_SI--4-green?style=for-the-badge)]()
-[![Status](https://img.shields.io/badge/Status-v1.0.0-blue?style=for-the-badge)]()
+[![Status](https://img.shields.io/badge/Status-v1.1.1-blue?style=for-the-badge)]()
 [![Docker](https://img.shields.io/badge/Docker_|_READY-2496ED?style=for-the-badge&logo=docker&logoColor=white)]()
 [![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano-black?style=for-the-badge)]()
 [![Role](https://img.shields.io/badge/Cloud_&_Infrastructure_Engineer-333?style=for-the-badge)]()

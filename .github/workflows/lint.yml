@@ -3,12 +3,18 @@ name: Lint
 on:
   pull_request:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
   push:
     branches: [main]
     tags: ["v*"]
+    paths-ignore: ['**.md', 'docs/**']
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
