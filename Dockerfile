@@ -40,7 +40,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 # TRANSITIONAL PIN — openssl=3.5.8-r0 removes CVE-2026-14456 (OpenSSL 3.5.7-r0 → 3.5.8-r0; the
 # fixed version is already available in APKINDEX v3.23/main and v3.24/main). REMOVE this pin
 # once alpine 3.23.6 or 3.24.2 publish the fixed version.
-RUN apk --no-cache add ca-certificates=20260611-r0 openssl=3.5.8-r0 tzdata=2026c-r0 \
+RUN apk --no-cache add ca-certificates=20260909-r0 openssl=3.5.8-r0 tzdata=2026d-r0 \
     && adduser -D -g '' uiuser \
     && mkdir -p /ui-managed /backups \
     && chown -R uiuser:uiuser /ui-managed /backups
