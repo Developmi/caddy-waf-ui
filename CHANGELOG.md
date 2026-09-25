@@ -6,6 +6,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.2.0] - 2026-09-25
+
+### Added
+
+* **Perimeter Security Hardening (`feat(caddyfile)`)**: Added `(security_headers)` snippet (`-Server`, `-X-Powered-By`, `Permissions-Policy`, `X-Permitted-Cross-Domain-Policies`, CSP/HSTS) and defense-in-depth `@sensitive_paths` block returning 403 Forbidden on `.git`, `.env`, and sensitive files.
+* **Modernized Makefile**: Introduced unified `make test` combining format checks, vetting, 5 linters, and race-detected tests, alongside granular test targets (`test-unit`, `test-race`, `test-coverage`, `test-integration`, `test-pkg`) and ergonomics (`fmt-fix`, `clean`).
+
+### Security
+
+* **Least-Privilege Pipeline Decoupling (`ci(pipeline)`)**: Decoupled `docker-build-scan-sign.yml` into a 3-job workflow (`scan` with read-only permissions, `test` gate, and tag-only `publish` with scoped Cosign, SLSA, and GHCR write permissions). Configured with `cancel-in-progress: false` to ensure atomic artifact generation.
+
+### Testing
+
+* **Enterprise Statement Coverage (≥ 90%)**: Elevated unit and statement test coverage above 90% across all packages (`internal/config` 100%, `internal/auth` 96.1%, `internal/waf` 95.1%, `internal/logs` 94.3%, `internal/iprules` 93.1%, `internal/ratelimit` 92.7%, `internal/ui` 92.6%, `internal/domain` 92.6%, `internal/service` 92.4%, `internal/caddy` 92.2%, `internal/files` 91.3%, `cmd/server` 80.0%), achieving **92.8%** global statements coverage. Added branch coverage for HTTP streaming passthroughs (`Flusher`, `Hijacker`, `ReaderFrom`).
+
+### Changed
+
+* **Upstream caddy-waf Alignment**: Updated default `caddy-waf` container image tag from `v3.5.4` to `v3.5.5` across `docker-compose.yml`, `.env.example`, `README.md`, `INTEGRATION.md`, and `Dockerfile`.
+* **Metadata & Badges**: Synchronized manifest versions (`pyproject.toml`, `uv.lock`), documentation badges, and security policies to `v1.2.0`.
+
+---
+
 ## [1.1.2] - 2026-09-23
 
 ### Fixed

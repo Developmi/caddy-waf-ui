@@ -1,6 +1,6 @@
 [project]
 name = "caddy-waf-ui"
-version = "1.1.2"
+version = "1.2.0"
 description = "Sidecar management UI for caddy-waf: WAF mode, CRS exclusions, IP rules and rollback."
 readme = "README.md"
 requires-python = ">=3.14"
