@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/License-MIT_©_Miguel_Lozano_|_Developmi-blue?style=for-the-badge)](./LICENSE)
 [![Stack](https://img.shields.io/badge/Go_1.26.4-native-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
 [![Security](https://img.shields.io/badge/NIST_SP_800--53-AC--3_|_AU--12_|_SI--4-green?style=for-the-badge)]()
-[![Status](https://img.shields.io/badge/Status-v1.1.2-blue?style=for-the-badge)]()
+[![Status](https://img.shields.io/badge/Status-v1.2.0-blue?style=for-the-badge)]()
 [![Docker](https://img.shields.io/badge/Docker_|_READY-2496ED?style=for-the-badge&logo=docker&logoColor=white)]()
 [![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano-black?style=for-the-badge)]()
 [![Role](https://img.shields.io/badge/Cloud_&_Infrastructure_Engineer-333?style=for-the-badge)]()
@@ -291,10 +291,10 @@ EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 Unit tests cover the service chain, overlay generation, auth (constant-time compare, sessions, CSRF), the Caddy Admin client (including read-back verification), atomic file writes, snapshot retention, and the audit-log reader. Integration tests in `tests/integration/` exercise the REST API and SSR pages against a live stack.
 
 ```bash
-go test -race ./...     # full suite with race detector
-go vet ./...            # static checks
-go test -cover ./...    # coverage report
-make release-ready      # full pre-push gate (see CONTRIBUTING.md)
+make test               # full test suite + all linters + race detector
+make test-race          # unit tests with race detector
+make test-coverage      # test coverage report (>= 90% across packages)
+make release-ready      # full pre-push gate (fmt, vet, lint, vuln, race, compose, build)
 ```
 
 > CI runs three workflows on every PR against `main`: **lint** (golangci-lint, yamllint, actionlint, hadolint, zizmor), **test** (vet, race-detector tests, build, compose validation), and **build-scan-sign** (multi-arch build + Trivy gate with `vuln,secret,misconfig` scanners and SARIF upload). [Dependabot](.github/dependabot.yml) keeps gomod, Docker and GitHub Actions dependencies up to date (weekly, `chore(deps)` commits). The local pre-push gate `make release-ready` (fmt, vet, lint, vuln, test-race, compose-config, build, docker-build) mirrors what CI enforces - it is the merge gate (see [CONTRIBUTING.md](./CONTRIBUTING.md)). On `v*` tag pushes, build-scan-sign additionally pushes the multi-arch image to GHCR with SBOM, keyless cosign signature, and SLSA provenance.
