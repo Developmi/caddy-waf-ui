@@ -58,21 +58,40 @@
     }
 }
 
+# Reusable Security Headers Snippet
+# ---------------------------------
+(security_headers) {
+    header {
+        # Information disclosure suppression
+        -Server
+        -X-Powered-By
+        -X-AspNet-Version
+
+        # HTTP Security Headers
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+        X-Permitted-Cross-Domain-Policies "none"
+    }
+}
+
 # Example 1: Simple static site with WAF
 # ---------------------------------------
 example.com, www.example.com {
     import waf
+    import security_headers
 
     tls {
         protocols tls1.2 tls1.3
     }
 
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
+    # Native perimeter hardening: block sensitive files and dotfiles (defense in depth)
+    @sensitive_paths {
+        path /.git* /.env* /.aws* /.docker* *.sql *.htpasswd *.bak *.conf
     }
+    respond @sensitive_paths "Forbidden" 403
 
     respond "Caddy with Coraza WAF is working!" 200
 }
@@ -86,17 +105,17 @@ example.com, www.example.com {
 api.example.com {
     import /etc/caddy/ui-managed/ip-rules-api_example_com.conf
     import /etc/caddy/ui-managed/waf-api_example_com.conf
+    import security_headers
 
     tls {
         protocols tls1.2 tls1.3
     }
 
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
+    # Native perimeter hardening: block sensitive files and dotfiles (defense in depth)
+    @sensitive_paths {
+        path /.git* /.env* /.aws* /.docker* *.sql *.htpasswd *.bak *.conf
     }
+    respond @sensitive_paths "Forbidden" 403
 
     reverse_proxy example-app:80 {
         # Configure trusted proxies explicitly if there is an upstream LB.
@@ -108,10 +127,17 @@ api.example.com {
 # ---------------------------------------
 assets.example.com {
     import waf
+    import security_headers
 
     tls {
         protocols tls1.2 tls1.3
     }
+
+    # Native perimeter hardening: block sensitive files and dotfiles (defense in depth)
+    @sensitive_paths {
+        path /.git* /.env* /.aws* /.docker* *.sql *.htpasswd *.bak *.conf
+    }
+    respond @sensitive_paths "Forbidden" 403
 
     root * /usr/share/caddy
     file_server
@@ -123,10 +149,17 @@ assets.example.com {
 app.example.com {
     import /etc/caddy/ui-managed/ip-rules-app_example_com.conf
     import /etc/caddy/ui-managed/waf-app_example_com.conf
+    import security_headers
 
     tls {
         protocols tls1.2 tls1.3
     }
+
+    # Native perimeter hardening: block sensitive files and dotfiles (defense in depth)
+    @sensitive_paths {
+        path /.git* /.env* /.aws* /.docker* *.sql *.htpasswd *.bak *.conf
+    }
+    respond @sensitive_paths "Forbidden" 403
 
     root * /var/www/html
     php_fastcgi php-fpm:9000
@@ -140,6 +173,7 @@ ws.example.com {
     # For WebSockets, you might need to adjust CRS rules
     # or create specific exceptions in crs-setup.conf
     import waf
+    import security_headers
 
     tls {
         protocols tls1.2 tls1.3
