@@ -366,3 +366,219 @@ func TestBackupTypeRejectsUnsafeNames(t *testing.T) {
 		}
 	}
 }
+
+func TestRestoreBackupErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("CADDY_UI_MANAGED_DIR", filepath.Join(tmpDir, "managed"))
+	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups"))
+
+	// 1. Invalid snapshot ID
+	if err := files.RestoreBackup("example.com", "not-a-valid-snapshot"); err == nil {
+		t.Error("RestoreBackup with invalid snapshot name expected error, got nil")
+	}
+
+	// 2. Nonexistent snapshot
+	if err := files.RestoreBackup("example.com", "2026-01-01T00-00-00Z.waf.conf"); err == nil {
+		t.Error("RestoreBackup with nonexistent snapshot expected error, got nil")
+	}
+}
+
+func TestListBackupsIgnoresSubdirsAndNonMatchingFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupDir := filepath.Join(tmpDir, "backups")
+	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
+
+	domainSlugDir := filepath.Join(backupDir, "example_com")
+	if err := os.MkdirAll(domainSlugDir, 0750); err != nil {
+		t.Fatalf("failed to create backup dir: %v", err)
+	}
+
+	// Create a subdirectory inside the domain backup dir
+	if err := os.Mkdir(filepath.Join(domainSlugDir, "nested-dir"), 0750); err != nil {
+		t.Fatalf("failed to create nested dir: %v", err)
+	}
+
+	// Create a non-matching file
+	if err := os.WriteFile(filepath.Join(domainSlugDir, "random.txt"), []byte("data"), 0640); err != nil {
+		t.Fatalf("failed to write non-matching file: %v", err)
+	}
+
+	// Create a valid snapshot file
+	validFile := filepath.Join(domainSlugDir, "2026-09-01T12-00-00Z.waf.conf")
+	if err := os.WriteFile(validFile, []byte("# domain: example.com"), 0640); err != nil {
+		t.Fatalf("failed to write valid snapshot: %v", err)
+	}
+
+	backups, err := files.ListBackups("example.com")
+	if err != nil {
+		t.Fatalf("ListBackups failed: %v", err)
+	}
+	if len(backups) != 1 {
+		t.Errorf("expected exactly 1 valid backup, got %d", len(backups))
+	}
+}
+
+func TestBackupDirectoryCreationFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, "managed")
+	if err := os.MkdirAll(managedDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(managedDir, "waf-test_com.conf")
+	if err := os.WriteFile(sourcePath, []byte("content"), 0640); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a regular file where the backup dir should be
+	badBackupDir := filepath.Join(tmpDir, "file-not-dir")
+	if err := os.WriteFile(badBackupDir, []byte("blocker"), 0640); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
+	t.Setenv("CADDY_UI_BACKUP_DIR", badBackupDir)
+
+	if err := files.Backup("test.com", "waf"); err == nil {
+		t.Error("Backup should fail when backup dir cannot be created, got nil")
+	}
+}
+
+func TestBackupCopyFileFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, "managed")
+	backupDir := filepath.Join(tmpDir, "backups")
+	if err := os.MkdirAll(managedDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(managedDir, "waf-test_com.conf")
+	if err := os.WriteFile(sourcePath, []byte("content"), 0640); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create domain backup dir then make it read-only so copyFile cannot create destination file
+	domainBackupDir := filepath.Join(backupDir, "test_com")
+	if err := os.MkdirAll(domainBackupDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(domainBackupDir, 0550); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(domainBackupDir, 0750) }()
+
+	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
+	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
+
+	if err := files.Backup("test.com", "waf"); err == nil {
+		t.Error("Backup should fail when destination cannot be written, got nil")
+	}
+}
+
+func TestRestoreBackupReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupDir := filepath.Join(tmpDir, "backups")
+	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
+
+	// Create domain dir with a directory named as a snapshot (EISDIR on ReadFile)
+	domainSlugDir := filepath.Join(backupDir, "example_com")
+	dirSnapshot := filepath.Join(domainSlugDir, "2026-01-01T00-00-00Z.waf.conf")
+	if err := os.MkdirAll(dirSnapshot, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := files.RestoreBackup("example.com", "2026-01-01T00-00-00Z.waf.conf"); err == nil {
+		t.Error("RestoreBackup should fail when snapshot is a directory, got nil")
+	}
+}
+
+func TestBackupStatPermissionError(t *testing.T) {
+	// Skip if running as root where 0000 perms don't prevent stat
+	if os.Geteuid() == 0 {
+		t.Skip("skipping permission test as root")
+	}
+	tmpDir := t.TempDir()
+	managedDir := filepath.Join(tmpDir, "managed-unreadable")
+	if err := os.MkdirAll(managedDir, 0000); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(managedDir, 0750) }()
+
+	t.Setenv("CADDY_UI_MANAGED_DIR", managedDir)
+	t.Setenv("CADDY_UI_BACKUP_DIR", filepath.Join(tmpDir, "backups"))
+
+	if err := files.Backup("test.com", "waf"); err == nil {
+		t.Error("Backup should fail when source path cannot be statted, got nil")
+	}
+}
+
+func TestListBackupsReadDirError(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupDir := filepath.Join(tmpDir, "backups")
+	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
+
+	// Create a regular file instead of domain dir
+	domainSlugFile := filepath.Join(backupDir, "example_com")
+	if err := os.MkdirAll(backupDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(domainSlugFile, []byte("file"), 0640); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := files.ListBackups("example.com"); err == nil {
+		t.Error("ListBackups should fail when domain path is a file, got nil")
+	}
+}
+
+func TestRestoreBackupAtomicWriteError(t *testing.T) {
+	tmpDir := t.TempDir()
+	backupDir := filepath.Join(tmpDir, "backups")
+	t.Setenv("CADDY_UI_BACKUP_DIR", backupDir)
+	t.Setenv("CADDY_UI_MANAGED_DIR", "/nonexistent-managed-dir-xyz")
+
+	// Create valid snapshot
+	domainSlugDir := filepath.Join(backupDir, "example_com")
+	if err := os.MkdirAll(domainSlugDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	snapshotFile := filepath.Join(domainSlugDir, "2026-09-01T12-00-00Z.waf.conf")
+	if err := os.WriteFile(snapshotFile, []byte("data"), 0640); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := files.RestoreBackup("example.com", "2026-09-01T12-00-00Z.waf.conf"); err == nil {
+		t.Error("RestoreBackup should fail when AtomicWrite fails, got nil")
+	}
+}
+
+func TestEnforceRetentionErrors(t *testing.T) {
+	// 1. Nonexistent directory
+	if err := files.EnforceRetentionForTest("/nonexistent-dir-for-retention-test", "waf", 5); err == nil {
+		t.Error("EnforceRetention on nonexistent dir expected error, got nil")
+	}
+
+	// 2. Directory where file cannot be removed
+	if os.Geteuid() == 0 {
+		return // skip if root
+	}
+	tmpDir := t.TempDir()
+	retentionDir := filepath.Join(tmpDir, "retention-ro")
+	if err := os.MkdirAll(retentionDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	f1 := filepath.Join(retentionDir, "2026-01-01T00-00-00Z.waf.conf")
+	f2 := filepath.Join(retentionDir, "2026-01-02T00-00-00Z.waf.conf")
+	if err := os.WriteFile(f1, []byte("1"), 0640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f2, []byte("2"), 0640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(retentionDir, 0550); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(retentionDir, 0750) }()
+
+	if err := files.EnforceRetentionForTest(retentionDir, "waf", 1); err == nil {
+		t.Error("EnforceRetention should fail when file cannot be removed, got nil")
+	}
+}

@@ -179,3 +179,20 @@ func TestGenerateExclusions(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateExclusions(t *testing.T) {
+	valid := []waf.Exclusion{
+		{Type: waf.ExcludeByID, Value: "941100"},
+		{Type: waf.ExcludeByTag, Value: "attack-sqli"},
+	}
+	if err := waf.ValidateExclusions(valid); err != nil {
+		t.Fatalf("expected valid exclusions, got error: %v", err)
+	}
+
+	invalid := []waf.Exclusion{
+		{Type: "invalid-type", Value: "123"},
+	}
+	if err := waf.ValidateExclusions(invalid); err == nil {
+		t.Fatal("expected error for invalid exclusion type, got nil")
+	}
+}

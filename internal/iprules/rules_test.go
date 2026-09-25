@@ -81,6 +81,13 @@ func TestGenerateSnippet(t *testing.T) {
 				"remote_ip 203.0.113.5/32",
 			},
 		},
+		{
+			name: "invalid entry in allowlist",
+			rules: iprules.IPRules{
+				Allowlist: []string{"bad-ip"},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -106,5 +113,54 @@ func TestGenerateSnippet(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValidateIPRules(t *testing.T) {
+	// Valid rules
+	valid := iprules.IPRules{
+		Denylist:  []string{"192.168.1.1", "10.0.0.0/16"},
+		Allowlist: []string{"203.0.113.1/32"},
+	}
+	if err := iprules.ValidateIPRules(valid); err != nil {
+		t.Errorf("ValidateIPRules failed for valid rules: %v", err)
+	}
+
+	// Invalid denylist
+	invalidDeny := iprules.IPRules{
+		Denylist: []string{"invalid-ip"},
+	}
+	if err := iprules.ValidateIPRules(invalidDeny); err == nil {
+		t.Error("ValidateIPRules expected error for invalid denylist, got nil")
+	}
+
+	// Invalid allowlist
+	invalidAllow := iprules.IPRules{
+		Allowlist: []string{"999.999.999.999"},
+	}
+	if err := iprules.ValidateIPRules(invalidAllow); err == nil {
+		t.Error("ValidateIPRules expected error for invalid allowlist, got nil")
+	}
+}
+
+func TestGenerateSnippetBothAllowAndDeny(t *testing.T) {
+	site := &domain.Site{
+		Domain: "secure.example.com",
+		Mode:   domain.ModeOn,
+	}
+	rules := iprules.IPRules{
+		Denylist:  []string{"198.51.100.1"},
+		Allowlist: []string{"192.0.2.1"},
+	}
+	snippet, err := iprules.GenerateSnippet(site, rules)
+	if err != nil {
+		t.Fatalf("GenerateSnippet failed: %v", err)
+	}
+	content := string(snippet)
+	if !strings.Contains(content, "remote_ip 198.51.100.1/32") {
+		t.Errorf("missing denylist rule in snippet: %s", content)
+	}
+	if !strings.Contains(content, "remote_ip 192.0.2.1/32") {
+		t.Errorf("missing allowlist rule in snippet: %s", content)
 	}
 }
