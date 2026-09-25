@@ -6,6 +6,8 @@ package ratelimit
 // Allow(key) are the same production path that runs under -race.
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
@@ -310,5 +312,86 @@ func TestClientLimiterConcurrentDistinctKeysRace(t *testing.T) {
 	// does not close at 15.
 	if okCount != 15 {
 		t.Errorf("concurrent per-client grants: expected 15 ok, got %d", okCount)
+	}
+}
+
+func TestTooManyRequests(t *testing.T) {
+	rec := httptest.NewRecorder()
+	tooManyRequests(rec, 15*time.Second)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("expected status 429, got %d", rec.Code)
+	}
+	if retry := rec.Header().Get("Retry-After"); retry != "15" {
+		t.Errorf("expected Retry-After 15, got %q", retry)
+	}
+}
+
+func TestLoginMiddleware(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	middleware := Login(handler)
+
+	// GET requests must always pass without limiting
+	for i := 0; i < 10; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/login", nil)
+		req.RemoteAddr = "192.0.2.1:12345"
+		rec := httptest.NewRecorder()
+		middleware.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /login request %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+
+	// POST requests should be limited per client IP
+	clientIP := "192.0.2.2:12345"
+	for i := 0; i < LoginPerClientBurst; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/login", nil)
+		req.RemoteAddr = clientIP
+		rec := httptest.NewRecorder()
+		middleware.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST /login request %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+
+	// 6th POST must return 429
+	req := httptest.NewRequest(http.MethodPost, "/login", nil)
+	req.RemoteAddr = clientIP
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("6th POST /login: expected 429, got %d", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Errorf("expected Retry-After header on 429 response")
+	}
+}
+
+func TestAPIMiddleware(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	middleware := API(handler)
+
+	clientIP := "192.0.2.3:12345"
+	for i := 0; i < APIBurst; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/sites", nil)
+		req.RemoteAddr = clientIP
+		rec := httptest.NewRecorder()
+		middleware.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /api/sites request %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+
+	// Next request must be limited to 429
+	req := httptest.NewRequest(http.MethodGet, "/api/sites", nil)
+	req.RemoteAddr = clientIP
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("API request after burst: expected 429, got %d", rec.Code)
 	}
 }

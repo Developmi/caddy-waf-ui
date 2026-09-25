@@ -1,7 +1,9 @@
 package logs
 
 import (
+	"bufio"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -82,5 +84,87 @@ func TestRequestLoggerRecordsNon2xxStatus(t *testing.T) {
 	}
 	if !strings.Contains(out, "path=/missing") {
 		t.Errorf("the entry must record the real path, output: %s", out)
+	}
+}
+
+type stubFlusherWriter struct {
+	http.ResponseWriter
+	flushed bool
+}
+
+func (s *stubFlusherWriter) Flush() {
+	s.flushed = true
+}
+
+type stubHijackerWriter struct {
+	http.ResponseWriter
+	hijacked bool
+}
+
+func (s *stubHijackerWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	s.hijacked = true
+	return nil, nil, nil
+}
+
+type stubReaderFromWriter struct {
+	http.ResponseWriter
+	readFromCalled bool
+}
+
+func (s *stubReaderFromWriter) ReadFrom(r io.Reader) (int64, error) {
+	s.readFromCalled = true
+	return io.Copy(io.Discard, r)
+}
+
+func TestStatusRecorderFlush(t *testing.T) {
+	recPlain := &statusRecorder{ResponseWriter: httptest.NewRecorder()}
+	recPlain.Flush() // Should not panic when ResponseWriter is not Flusher
+
+	stub := &stubFlusherWriter{ResponseWriter: httptest.NewRecorder()}
+	recFlusher := &statusRecorder{ResponseWriter: stub}
+	recFlusher.Flush()
+	if !stub.flushed {
+		t.Errorf("expected Flush() to be delegated to Flusher")
+	}
+}
+
+func TestStatusRecorderHijack(t *testing.T) {
+	recPlain := &statusRecorder{ResponseWriter: httptest.NewRecorder()}
+	_, _, err := recPlain.Hijack()
+	if err != http.ErrNotSupported {
+		t.Errorf("expected ErrNotSupported, got %v", err)
+	}
+
+	stub := &stubHijackerWriter{ResponseWriter: httptest.NewRecorder()}
+	recHijack := &statusRecorder{ResponseWriter: stub}
+	_, _, err = recHijack.Hijack()
+	if err != nil {
+		t.Fatalf("unexpected hijack error: %v", err)
+	}
+	if !stub.hijacked {
+		t.Errorf("expected Hijack() to be delegated to Hijacker")
+	}
+}
+
+func TestStatusRecorderReadFrom(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sr := &statusRecorder{ResponseWriter: rec}
+	payload := "streaming body content"
+	n, err := sr.ReadFrom(strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("ReadFrom failed: %v", err)
+	}
+	if n != int64(len(payload)) || rec.Body.String() != payload {
+		t.Errorf("ReadFrom copied %d bytes with content %q; expected %d and %q", n, rec.Body.String(), len(payload), payload)
+	}
+
+	stub := &stubReaderFromWriter{ResponseWriter: httptest.NewRecorder()}
+	srStub := &statusRecorder{ResponseWriter: stub}
+	_, err = srStub.ReadFrom(strings.NewReader("sample"))
+	if err != nil {
+		t.Fatalf("ReadFrom stub failed: %v", err)
+	}
+	if !stub.readFromCalled {
+		t.Errorf("expected ReadFrom() to be delegated to ReaderFrom")
 	}
 }

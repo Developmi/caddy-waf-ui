@@ -76,3 +76,27 @@ func TestSetupHonorsThreshold(t *testing.T) {
 		}
 	}
 }
+
+func TestLogAction(t *testing.T) {
+	logs := captureLogs(t)
+
+	LogAction("waf_mode_change", "example.com", "detection", "prevention", "192.168.1.10", "ok")
+	LogAction("waf_rule_add", "test.org", "", "", "10.0.0.1", "")
+
+	out := logs.String()
+	if !strings.Contains(out, "event=waf_mode_change") || !strings.Contains(out, "from=detection") || !strings.Contains(out, "to=prevention") || !strings.Contains(out, "caddy_reload=ok") {
+		t.Errorf("explicit fields missing in output: %s", out)
+	}
+	if !strings.Contains(out, "event=waf_rule_add") || !strings.Contains(out, "from=unknown") || !strings.Contains(out, "to=unknown") || !strings.Contains(out, "caddy_reload=unknown") {
+		t.Errorf("expected empty fields to be normalized to 'unknown', output: %s", out)
+	}
+}
+
+func TestOrUnknown(t *testing.T) {
+	if got := orUnknown(""); got != "unknown" {
+		t.Errorf("orUnknown(\"\") = %q, want \"unknown\"", got)
+	}
+	if got := orUnknown("valid"); got != "valid" {
+		t.Errorf("orUnknown(\"valid\") = %q, want \"valid\"", got)
+	}
+}

@@ -100,3 +100,10 @@ func TestAtomicWriteCleansTempOnError(t *testing.T) {
 		t.Errorf("a failed write left %d stale temp files: %v", len(leftovers), leftovers)
 	}
 }
+
+func TestAtomicWriteInvalidDirectory(t *testing.T) {
+	err := files.AtomicWrite("/nonexistent-dir-test-xyz/test.conf", []byte("data"))
+	if err == nil {
+		t.Error("AtomicWrite in nonexistent directory should fail, got nil")
+	}
+}

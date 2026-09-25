@@ -18,36 +18,45 @@ help:
 	@echo ""
 	@echo "Setup"
 	@echo "-----"
-	@echo "  make tools          Install development tools"
-	@echo "  make reinstall      Reinstall development tools"
-	@echo "  make doctor         Verify development environment"
+	@echo "  make tools            Install development tools"
+	@echo "  make reinstall        Reinstall development tools"
+	@echo "  make doctor           Verify development environment"
 	@echo ""
-	@echo "Quality"
-	@echo "-------"
-	@echo "  make fmt            Check Go formatting (gofmt -l)"
-	@echo "  make vet            Run go vet"
-	@echo "  make lint           Run all linters"
-	@echo "  make lint-go        Run golangci-lint"
-	@echo "  make lint-yaml      Lint YAML files"
-	@echo "  make lint-actions   Lint GitHub Actions workflows"
-	@echo "  make lint-docker    Lint Dockerfile"
-	@echo "  make lint-security  Scan GitHub Actions for security issues"
+	@echo "Testing & Quality (Unified)"
+	@echo "---------------------------"
+	@echo "  make test             Run full verification: format, vet, all linters, race tests"
 	@echo ""
-	@echo "Testing"
-	@echo "-------"
-	@echo "  make test           Run unit tests"
-	@echo "  make test-race      Run unit tests with the race detector"
-	@echo "  make vuln           Check for known vulnerabilities"
+	@echo "Granular Testing"
+	@echo "----------------"
+	@echo "  make test-unit        Run unit tests (fast)"
+	@echo "  make test-race        Run unit tests with race detector"
+	@echo "  make test-coverage    Run tests and output statement coverage"
+	@echo "  make test-integration Run integration tests with race detector"
+	@echo "  make test-pkg PKG=... Run tests for a specific package (e.g. PKG=internal/logs)"
 	@echo ""
-	@echo "Build"
-	@echo "-----"
-	@echo "  make build          Compile all packages"
-	@echo "  make docker-build   Build the Docker image"
-	@echo "  make compose-config Validate the docker-compose configuration"
+	@echo "Granular Quality & Linters"
+	@echo "--------------------------"
+	@echo "  make fmt              Check Go formatting (gofmt -l)"
+	@echo "  make fmt-fix          Format Go code in-place (gofmt -w)"
+	@echo "  make vet              Run go vet"
+	@echo "  make lint             Run all linters (Go, YAML, Actions, Docker, Security)"
+	@echo "  make lint-go          Run golangci-lint"
+	@echo "  make lint-yaml        Lint YAML files"
+	@echo "  make lint-actions     Lint GitHub Actions workflows"
+	@echo "  make lint-docker      Lint Dockerfile"
+	@echo "  make lint-security    Scan GitHub Actions for security issues (zizmor)"
+	@echo "  make vuln             Check for known vulnerabilities (govulncheck)"
+	@echo ""
+	@echo "Build & Runtime"
+	@echo "---------------"
+	@echo "  make build            Compile all packages"
+	@echo "  make docker-build     Build the Docker image"
+	@echo "  make compose-config   Validate the docker-compose configuration"
+	@echo "  make clean            Remove test and build artifacts"
 	@echo ""
 	@echo "Release"
 	@echo "-------"
-	@echo "  make release-ready  Run the full pre-push gate"
+	@echo "  make release-ready    Run full pre-push gate: test, vuln, compose, build, docker"
 	@echo ""
 
 .PHONY: tools
@@ -90,6 +99,12 @@ fmt:                                     # Check Go formatting; lists unformatte
 		exit 1; \
 	fi
 	@echo "✓ Go formatting passed."
+
+.PHONY: fmt-fix
+fmt-fix:                                 # Format all Go files in-place
+	@echo "==> Formatting Go files"
+	@gofmt -w .
+	@echo "✓ Go formatting applied."
 
 .PHONY: vet
 vet:                                     # Run go vet static analysis
@@ -140,17 +155,45 @@ lint: lint-go lint-yaml lint-actions lint-docker lint-security   # Run all linte
 	@echo
 	@echo "✓ All lint checks passed."
 
-.PHONY: test
-test:                                    # Run unit tests
-	@echo "==> Tests"
+.PHONY: test-unit
+test-unit:                               # Run unit tests (fast)
+	@echo "==> Tests (unit)"
 	@go test ./...
-	@echo "✓ Tests passed."
+	@echo "✓ Unit tests passed."
 
 .PHONY: test-race
 test-race:                               # Run unit tests with the race detector
 	@echo "==> Tests (race)"
 	@go test -race ./...
 	@echo "✓ Race tests passed."
+
+.PHONY: test-coverage
+test-coverage:                           # Run tests with race and statement coverage report
+	@echo "==> Tests (coverage)"
+	@go test -race -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out
+	@echo "✓ Coverage report generated."
+
+.PHONY: test-integration
+test-integration:                        # Run integration tests with race detector
+	@echo "==> Tests (integration)"
+	@go test -race ./tests/integration/...
+	@echo "✓ Integration tests passed."
+
+.PHONY: test-pkg
+test-pkg:                                # Run tests for a specific package: make test-pkg PKG=internal/logs
+	@if [ -z "$(PKG)" ]; then \
+		echo "Usage: make test-pkg PKG=<package-path>"; \
+		exit 1; \
+	fi
+	@echo "==> Tests (pkg: $(PKG))"
+	@go test -race -cover ./$(PKG)/...
+	@echo "✓ Package tests passed."
+
+.PHONY: test
+test: fmt vet lint test-race             # Run full test & quality suite (fmt, vet, all linters, race tests)
+	@echo
+	@echo "✓ All tests and quality checks passed."
 
 .PHONY: vuln
 vuln:                                    # Check dependencies for known vulnerabilities
@@ -176,7 +219,12 @@ compose-config:                          # Validate the docker-compose configura
 	@docker compose config --quiet
 	@echo "✓ Compose config passed."
 
+.PHONY: clean
+clean:                                   # Remove temporary test and coverage artifacts
+	@rm -f coverage.out cover.out
+	@echo "✓ Cleaned temporary artifacts."
+
 .PHONY: release-ready
-release-ready: fmt vet lint vuln test-race compose-config build docker-build   # Run the full pre-push gate: fmt, vet, lint, vuln, race tests, compose, builds
+release-ready: test vuln compose-config build docker-build   # Run the full pre-push gate
 	@echo
 	@echo "✓ Release-ready gate passed."

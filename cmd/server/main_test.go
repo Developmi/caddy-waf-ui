@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -37,5 +38,86 @@ func TestNewServerBounds(t *testing.T) {
 	}
 	if srv.MaxHeaderBytes != 1<<20 {
 		t.Errorf("MaxHeaderBytes: expected 1 MiB (%d), got %d", 1<<20, srv.MaxHeaderBytes)
+	}
+}
+
+func TestBuildHandler(t *testing.T) {
+	h := buildHandler()
+	if h == nil {
+		t.Fatal("buildHandler() returned nil")
+	}
+
+	tests := []struct {
+		name       string
+		method     string
+		target     string
+		wantStatus int
+	}{
+		{
+			name:       "health endpoint",
+			method:     http.MethodGet,
+			target:     "/health",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "login page",
+			method:     http.MethodGet,
+			target:     "/login",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "static css asset",
+			method:     http.MethodGet,
+			target:     "/static/app.css",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "unauthenticated api access",
+			method:     http.MethodGet,
+			target:     "/api/overview",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "unauthenticated root redirect to login",
+			method:     http.MethodGet,
+			target:     "/",
+			wantStatus: http.StatusFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.target, nil)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("%s %s: expected status %d, got %d", tt.method, tt.target, tt.wantStatus, rec.Code)
+			}
+			// Verify security headers wrapped by ui.SecurityHeaders
+			if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+				t.Errorf("expected X-Content-Type-Options: nosniff, got %q", rec.Header().Get("X-Content-Type-Options"))
+			}
+		})
+	}
+}
+
+func TestRun(t *testing.T) {
+	called := false
+	err := run(func(srv *http.Server) error {
+		called = true
+		if srv == nil {
+			t.Fatal("expected non-nil server")
+		}
+		if srv.Handler == nil {
+			t.Fatal("expected non-nil server handler")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if !called {
+		t.Error("expected serve callback to be invoked")
 	}
 }
