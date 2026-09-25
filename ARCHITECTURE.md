@@ -337,14 +337,6 @@ Every action emitted to stdout as JSON:
   "caddy_reload": "success"
 }
 ```
-
-### Cloudflare token (NIST SC-28, planned - not implemented in MVP)
-
-- Stored in `.env` (permissions `600`)
-- Displayed in UI as `••••••••••••{last4}`
-- Written to `.env` on update via atomic write
-- Never appears in audit logs, access logs, or error responses
-
 ### Browser content security (CSP)
 
 - All responses (pages, API, login, and assets) carry `Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` (see `internal/ui/static.go`)
