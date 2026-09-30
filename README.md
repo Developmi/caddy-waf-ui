@@ -7,13 +7,12 @@
 > Sidecar management UI for [caddy-waf](https://github.com/Developmi/caddy-waf).  
 > Per-site WAF mode, CRS exclusions, IP rules, and rollback - without touching your base Caddyfile.
 
+[![Stack](https://img.shields.io/badge/Go_1.26.4-stdlib--only-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
+[![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/developmi/caddy-waf-ui/actions)
+[![Supply Chain](https://img.shields.io/badge/Supply_Chain-Cosign_|_SLSA_|_Trivy-4A90D9?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/actions)
+[![Status](https://img.shields.io/badge/Status-v1.2.0-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
 [![License](https://img.shields.io/badge/License-MIT_©_Miguel_Lozano_|_Developmi-blue?style=for-the-badge)](./LICENSE)
-[![Stack](https://img.shields.io/badge/Go_1.26.4-native-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
-[![Security](https://img.shields.io/badge/NIST_SP_800--53-AC--3_|_AU--12_|_SI--4-green?style=for-the-badge)]()
-[![Status](https://img.shields.io/badge/Status-v1.2.0-blue?style=for-the-badge)]()
-[![Docker](https://img.shields.io/badge/Docker_|_READY-2496ED?style=for-the-badge&logo=docker&logoColor=white)]()
-[![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano-black?style=for-the-badge)]()
-[![Role](https://img.shields.io/badge/Cloud_&_Infrastructure_Engineer-333?style=for-the-badge)]()
+![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano_|_Cloud_&_Infrastructure_Engineer-black?style=for-the-badge)
 
 </div>
 
@@ -61,11 +60,8 @@ Internet → Caddy (base Caddyfile, Ansible-owned, :ro)
 - Add/remove CRS exclusions per site (by rule ID, tag, or URI+param)
 - Manage IP allowlist and denylist per site
 - View and search recent Coraza detection logs
-- Exclude rules from the per-domain exclusions page (one-click tuning from logs is planned)
+- Exclude rules from the per-domain exclusions page
 - Rollback any site config to a previous snapshot
-
-> **MVP status:** implemented today: WAF mode toggle, CRS exclusions (by ID, tag, or URI+param), IP rules, log viewer, and rollback.
-> Planned: one-click exclusion from log entries, Cloudflare token management, SSE log streaming.
 
 ---
 
@@ -349,7 +345,7 @@ SecRule REQUEST_URI "@beginsWith /api/v1/content" \
     "id:9000001,phase:2,pass,nolog,ctl:ruleRemoveTargetById=942100;ARGS:body"
 ```
 
-Exclusions are managed on the per-domain **exclusions page** - a catalog of common OWASP CRS rules plus a custom directive form, submitted via `POST /sites/{domain}/exclusions` (by rule ID, tag, or URI + parameter). One-click exclusion from a log entry is **planned - not implemented in MVP**.
+Exclusions are managed on the per-domain **exclusions page** - a catalog of common OWASP CRS rules plus a custom directive form, submitted via `POST /sites/{domain}/exclusions` (by rule ID, tag, or URI + parameter).
 
 ### IP Rules (per site)
 
@@ -385,15 +381,7 @@ Each entry shows the trigger details as columns - timestamp, action (DETECTED / 
 2026-07-22 14:32:11  BLOCKED  941100  203.0.113.7  GET /search?q=<script>
 ```
 
-Inline exclusion actions on log entries (Add Exclusion / View Rule / Block IP) are **planned - not implemented in MVP**; exclusions are added from the per-domain exclusions page instead.
-
-### Cloudflare Token (planned - not implemented in MVP)
-
-The stored token is:
-
-- Never logged
-- Shown in the UI as `••••••••••••abcd` (last 4 chars only)
-- Updatable through the UI (writes back to `.env`, triggers sidecar restart)
+Exclusions are managed from the per-domain exclusions page.
 
 ---
 
