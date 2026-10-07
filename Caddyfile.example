@@ -74,6 +74,19 @@
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
         X-Permitted-Cross-Domain-Policies "none"
+
+        # Content Security Policy (OWASP secure baseline)
+        Content-Security-Policy "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self';"
+    }
+}
+
+(rate_limiting) {
+    rate_limit {
+        zone default {
+            key {remote_host}
+            events 100
+            window 1m
+        }
     }
 }
 
@@ -82,6 +95,7 @@
 example.com, www.example.com {
     import waf
     import security_headers
+    import rate_limiting
 
     tls {
         protocols tls1.2 tls1.3
@@ -106,6 +120,7 @@ api.example.com {
     import /etc/caddy/ui-managed/ip-rules-api_example_com.conf
     import /etc/caddy/ui-managed/waf-api_example_com.conf
     import security_headers
+    import rate_limiting
 
     tls {
         protocols tls1.2 tls1.3
@@ -128,6 +143,7 @@ api.example.com {
 assets.example.com {
     import waf
     import security_headers
+    import rate_limiting
 
     tls {
         protocols tls1.2 tls1.3
@@ -150,6 +166,7 @@ app.example.com {
     import /etc/caddy/ui-managed/ip-rules-app_example_com.conf
     import /etc/caddy/ui-managed/waf-app_example_com.conf
     import security_headers
+    import rate_limiting
 
     tls {
         protocols tls1.2 tls1.3
@@ -174,10 +191,17 @@ ws.example.com {
     # or create specific exceptions in crs-setup.conf
     import waf
     import security_headers
+    import rate_limiting
 
     tls {
         protocols tls1.2 tls1.3
     }
+
+    # Native perimeter hardening: block sensitive files and dotfiles (defense in depth)
+    @sensitive_paths {
+        path /.git* /.env* /.aws* /.docker* *.sql *.htpasswd *.bak *.conf
+    }
+    respond @sensitive_paths "Forbidden" 403
 
     reverse_proxy websocket-backend:8080 {
         # WebSocket specific headers

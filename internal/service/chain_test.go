@@ -2,12 +2,14 @@ package service_test
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/developmi/caddy-waf-ui/internal/domain"
@@ -980,5 +982,31 @@ func TestDeployContractCustomManagedDirs(t *testing.T) {
 	}
 	if env.admin.calls != 1 {
 		t.Errorf("expected 1 reload, %d made", env.admin.calls)
+	}
+}
+
+// TestConcurrentChainMutations verifies that concurrent runChain executions are
+// safely serialized by chainMu without races or state corruption.
+func TestConcurrentChainMutations(t *testing.T) {
+	env := setupChainEnv(t, false)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			domainName := fmt.Sprintf("site%d.example.com", idx)
+			if err := service.UpdateWAFMode(domainName, domain.ModeOn, "192.0.2.1"); err != nil {
+				t.Errorf("concurrent UpdateWAFMode failed for %s: %v", domainName, err)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if env.admin.calls != goroutines {
+		t.Errorf("expected %d reloads, got %d", goroutines, env.admin.calls)
 	}
 }

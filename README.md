@@ -7,13 +7,12 @@
 > Sidecar management UI for [caddy-waf](https://github.com/Developmi/caddy-waf).  
 > Per-site WAF mode, CRS exclusions, IP rules, and rollback - without touching your base Caddyfile.
 
+[![Stack](https://img.shields.io/badge/Go_1.26.4-stdlib--only-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
+[![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/developmi/caddy-waf-ui/actions)
+[![Supply Chain](https://img.shields.io/badge/Supply_Chain-Cosign_|_SLSA_|_Trivy-4A90D9?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/actions)
+[![Status](https://img.shields.io/badge/Status-v1.3.0-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
 [![License](https://img.shields.io/badge/License-MIT_©_Miguel_Lozano_|_Developmi-blue?style=for-the-badge)](./LICENSE)
-[![Stack](https://img.shields.io/badge/Go_1.26.4-native-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
-[![Security](https://img.shields.io/badge/NIST_SP_800--53-AC--3_|_AU--12_|_SI--4-green?style=for-the-badge)]()
-[![Status](https://img.shields.io/badge/Status-v1.2.0-blue?style=for-the-badge)]()
-[![Docker](https://img.shields.io/badge/Docker_|_READY-2496ED?style=for-the-badge&logo=docker&logoColor=white)]()
-[![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano-black?style=for-the-badge)]()
-[![Role](https://img.shields.io/badge/Cloud_&_Infrastructure_Engineer-333?style=for-the-badge)]()
+![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano_|_Cloud_&_Infrastructure_Engineer-black?style=for-the-badge)
 
 </div>
 
@@ -61,18 +60,15 @@ Internet → Caddy (base Caddyfile, Ansible-owned, :ro)
 - Add/remove CRS exclusions per site (by rule ID, tag, or URI+param)
 - Manage IP allowlist and denylist per site
 - View and search recent Coraza detection logs
-- Exclude rules from the per-domain exclusions page (one-click tuning from logs is planned)
+- Exclude rules from the per-domain exclusions page
 - Rollback any site config to a previous snapshot
-
-> **MVP status:** implemented today: WAF mode toggle, CRS exclusions (by ID, tag, or URI+param), IP rules, log viewer, and rollback.
-> Planned: one-click exclusion from log entries, Cloudflare token management, SSE log streaming.
 
 ---
 
 ## Prerequisites
 
 - Docker 24.x+ and Docker Compose v2.x+
-- the `caddy-waf` stack v3.3.x+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
+- the `caddy-waf` stack v3.6.0+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
 - Caddy Admin API reachable at `caddy:2019` (Docker internal network only)
 - Tailscale or equivalent for UI access (UI binds to `0.0.0.0:8080` by default)
 
@@ -116,7 +112,7 @@ export CADDY_ADMIN_URL="http://caddy-waf:2019"
 ```yaml
 # In your existing docker-compose.yml, add:
   caddy-waf-ui:
-    # Tag v1.0.0 exists, and the build-scan-sign pipeline signs (keyless
+    # Tag v1.3.0 exists, and the build-scan-sign pipeline signs (keyless
     # cosign) and publishes to ghcr.io/developmi/caddy-waf-ui whenever a v*
     # tag is pushed - publication is at the maintainer's discretion. Pin an
     # immutable digest in production (SECURITY.md: never `:latest`). Building
@@ -183,23 +179,25 @@ caddy-waf-ui/
 ├── internal/
 │   ├── auth/            # bearer token + cookie-session auth, HMAC-CSRF
 │   ├── caddy/           # Caddy Admin API client, reload, read-back verify
+│   ├── config/          # centralized environment configuration
 │   ├── domain/          # site config model (slug, overlay generation)
 │   ├── files/           # atomic writes, snapshots, retention
 │   ├── iprules/         # IP allow/deny rule rendering
 │   ├── logs/            # structured JSON logging + Coraza audit reader
+│   ├── ratelimit/       # native sliding token-bucket rate limiter
 │   ├── service/         # shared chain: validate → backup → generate → write → reload → audit
 │   ├── ui/              # SSR pages (html/template + go:embed), PRG forms
 │   └── waf/             # WAF mode / CRS exclusion rendering
 └── tests/integration/   # end-to-end API + SSR tests against a live stack
 ```
 
-Request flow: `Browser → UI (auth + CSRF) → internal/service chain → ui-managed/ overlay → POST /load → read-back verify → audit log`.
+Request flow: `Browser → UI (rate limit + auth + CSRF) → internal/service chain → ui-managed/ overlay → POST /load → read-back verify → audit log`.
 
 ---
 
 ## 🐳 Docker deployment
 
-Multi-stage build (builder → runtime), non-root `uiuser`, pinned base images (`golang:1.26.6-alpine`, `alpine:3.23.5`) - never `:latest`. Tag `v1.0.0` exists, and the `docker-build-scan-sign` workflow builds, scans, signs (keyless cosign) and publishes to `ghcr.io/developmi/caddy-waf-ui` **only when a `v*` tag is pushed** - the published image appears at the maintainer's discretion, not automatically. Until then, build from source:
+Multi-stage build (builder → runtime), non-root `uiuser`, pinned base images (`golang:1.27.1-alpine`, `alpine:3.24.2`) - never `:latest`. Tag `v1.3.0` exists, and the `docker-build-scan-sign` workflow builds, scans, signs (keyless cosign) and publishes to `ghcr.io/developmi/caddy-waf-ui` **only when a `v*` tag is pushed** - the published image appears at the maintainer's discretion, not automatically. Until then, build from source:
 
 ```bash
 docker build -t caddy-waf-ui:local .
@@ -280,7 +278,7 @@ CADDY_UI_AUDIT_LOG=/data/logs/coraza-audit.log
 ACME_EMAIL=admin@example.com
 SITE_ADDRESS=localhost
 BACKEND_UPSTREAM=example-app:80
-CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.5.5
+CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.0
 EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 ```
 
@@ -349,7 +347,7 @@ SecRule REQUEST_URI "@beginsWith /api/v1/content" \
     "id:9000001,phase:2,pass,nolog,ctl:ruleRemoveTargetById=942100;ARGS:body"
 ```
 
-Exclusions are managed on the per-domain **exclusions page** - a catalog of common OWASP CRS rules plus a custom directive form, submitted via `POST /sites/{domain}/exclusions` (by rule ID, tag, or URI + parameter). One-click exclusion from a log entry is **planned - not implemented in MVP**.
+Exclusions are managed on the per-domain **exclusions page** - a catalog of common OWASP CRS rules plus a custom directive form, submitted via `POST /sites/{domain}/exclusions` (by rule ID, tag, or URI + parameter).
 
 ### IP Rules (per site)
 
@@ -385,15 +383,7 @@ Each entry shows the trigger details as columns - timestamp, action (DETECTED / 
 2026-07-22 14:32:11  BLOCKED  941100  203.0.113.7  GET /search?q=<script>
 ```
 
-Inline exclusion actions on log entries (Add Exclusion / View Rule / Block IP) are **planned - not implemented in MVP**; exclusions are added from the per-domain exclusions page instead.
-
-### Cloudflare Token (planned - not implemented in MVP)
-
-The stored token is:
-
-- Never logged
-- Shown in the UI as `••••••••••••abcd` (last 4 chars only)
-- Updatable through the UI (writes back to `.env`, triggers sidecar restart)
+Exclusions are managed from the per-domain exclusions page.
 
 ---
 

@@ -12,6 +12,7 @@ package ratelimit
 
 import (
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
@@ -198,6 +199,16 @@ func tooManyRequests(w http.ResponseWriter, retryAfter time.Duration) {
 	http.Error(w, "too many requests, retry later", http.StatusTooManyRequests)
 }
 
+// clientIP extracts the host portion of r.RemoteAddr, stripping ephemeral ports (RL-1/RL-2).
+// Untrusted headers like X-Forwarded-For are never used.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
 // Login wraps the public login mux limiting ONLY the POST (RL-1): safe
 // methods (GET /login) pass without consuming tokens, so the login page is
 // never blocked by the attempt limit (RL-3/D4). The order is per-client and
@@ -208,7 +219,7 @@ func Login(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if ok, retryAfter := loginClient.Allow(r.RemoteAddr); !ok {
+		if ok, retryAfter := loginClient.Allow(clientIP(r)); !ok {
 			tooManyRequests(w, retryAfter)
 			return
 		}
@@ -220,12 +231,12 @@ func Login(next http.Handler) http.Handler {
 	})
 }
 
-// API limits /api/* per RemoteAddr (RL-2/D2). It is mounted OUTSIDE
+// API limits /api/* per client IP (RL-2/D2). It is mounted OUTSIDE
 // auth.Middleware (D4): token-less probes consume budget and the 429 cuts
 // before auth/CSRF/RequestLogger. It applies to all methods.
 func API(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if ok, retryAfter := apiClient.Allow(r.RemoteAddr); !ok {
+		if ok, retryAfter := apiClient.Allow(clientIP(r)); !ok {
 			tooManyRequests(w, retryAfter)
 			return
 		}

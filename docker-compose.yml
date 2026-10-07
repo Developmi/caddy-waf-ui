@@ -1,6 +1,6 @@
 services:
   caddy-waf:
-    image: ${CADDY_WAF_IMAGE:-ghcr.io/developmi/caddy-waf:v3.5.5}
+    image: ${CADDY_WAF_IMAGE:-ghcr.io/developmi/caddy-waf:v3.6.0}
     container_name: caddy-waf
     user: "1337:1337"
     restart: unless-stopped
@@ -86,7 +86,7 @@ services:
       - caddy-ui-config:/ui-managed:rw
 
   # Example backend service (optional)
-  # Exact pin (no :latest): same criteria as the managed image (v3.3.2).
+  # Exact pin (no :latest): same criteria as the managed image (v3.6.0).
   example-app:
     image: ${EXAMPLE_APP_IMAGE:-containous/whoami:v1.5.0}
     container_name: example-app

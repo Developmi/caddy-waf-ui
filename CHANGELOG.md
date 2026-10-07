@@ -6,6 +6,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.3.0] - 2026-10-07
+
+### Added
+
+* **Wildcard Domain Support (`feat(service)`)**: Enabled support for wildcard domains (`*.example.com`) across domain validation, API mutations, overlay rendering, and integration tests, aligning with `DomainSlug` filesystem conventions.
+* **Service Mutation Serialization (`fix(concurrency)`)**: Added process-wide mutex `chainMu` to serialize overlay backups, writes, and Caddy Admin API reloads, preventing race conditions and backup timestamp collisions under concurrent load.
+* **Rate Limiting & CSP Baseline (`feat(caddyfile)`)**: Aligned [Caddyfile.example](file:///mnt/Workspace/_02_SECURITY/caddy-waf-ui/Caddyfile.example) with `caddy-waf` v3.6.0 by adding `(rate_limiting)` snippet, global `order rate_limit before basicauth`, and `Content-Security-Policy` header in `(security_headers)`.
+
+### Security & Dependencies
+
+* **Rate Limiter Host Keying Fix (`fix(security)`)**: Resolved client rate limiter bypass where ephemeral TCP ports were included in bucket keys. Stripped ports via `net.SplitHostPort` in `Login` and `API` middlewares, enforcing strict per-client IP throttling regardless of socket churn.
+* **Upstream caddy-waf Alignment**: Updated default `caddy-waf` container image tag from `v3.5.5` to `v3.6.0` (incorporating Caddy 2.11.7 and OWASP CRS v4.30.0) across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
+* **Runtime Alpine & Package Pins Hardening**: Bumped runtime image to `alpine:3.24.2` and updated package pins (`openssl=3.5.9-r0`, `tzdata=2026e-r0`) in `Dockerfile`, maintaining 0 CVEs on Trivy scan and full Go stdlib purity.
+* **CI/CD Actions Updates**: Updated GitHub Actions pins including `astral-sh/setup-uv` to `v10.2.0`, `docker/setup-buildx-action` to `v4.4.1`, and `docker/build-push-action` to `v7.4.0`.
+
+### Documentation
+
+* **Accurate Rate Limiting & Standards Alignment**: Updated `SECURITY.md` to document active token-bucket rate limiting, reconciled component trees in `ARCHITECTURE.md` and `README.md` (`internal/config`, `internal/ratelimit`), translated residual Spanish terms in `INTEGRATION.md`, and aligned badges to `v1.3.0`.
+
+---
+
 ## [1.2.0] - 2026-09-25
 
 ### Added

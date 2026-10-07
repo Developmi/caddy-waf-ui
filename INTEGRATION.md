@@ -91,7 +91,7 @@ The UI reads the Coraza audit log (`CADDY_UI_AUDIT_LOG`, default
 writes the log as uid 1337, so the contract depends on file/directory modes set
 by the sibling image:
 
-- **Verified against `ghcr.io/developmi/caddy-waf:v3.5.5`** (running stack):
+- **Verified against `ghcr.io/developmi/caddy-waf:v3.6.0`** (running stack):
   `/data/logs` is `drwxr-xr-x` and `coraza-audit.log` is `-rw-r--r--` (0644) -
   world-readable, so uid 1000 can open it. No action needed in this repo.
 - **Required invariant (stack/sibling image)**: the audit log must stay `0644`
@@ -261,9 +261,8 @@ uses the normal (non-emergency) change path.
 
 ## 9. Onboarding - registering a new managed domain
 
-1. **Ansible alta**: add the domain to the stack - site block with the §5
-   per-slug imports, the two placeholder files, and the Cloudflare client
-   certificates in the vault - then deploy.
+1. **Ansible registration**: add the domain to the stack - site block with the §5
+   per-slug imports and the two placeholder files - then deploy.
 2. **Discovery**: the UI discovers the domain either via its
    `waf-{slug}.conf` (scanner) or on the first UI write.
 3. **Manage**: the operator manages mode, exclusions, and IP rules from the UI.
