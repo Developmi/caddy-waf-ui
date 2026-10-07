@@ -45,7 +45,11 @@ func ValidateDomain(domain string) error {
 	if strings.Contains(domain, "..") {
 		return fmt.Errorf("%w: %q contains two consecutive dots", ErrInvalidDomain, domain)
 	}
-	for _, label := range strings.Split(domain, ".") {
+	labels := strings.Split(domain, ".")
+	for i, label := range labels {
+		if i == 0 && label == "*" && len(labels) >= 3 {
+			continue
+		}
 		if err := validateLabel(label); err != nil {
 			return fmt.Errorf("%w: %q: %v", ErrInvalidDomain, domain, err)
 		}

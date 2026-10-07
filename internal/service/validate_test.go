@@ -123,7 +123,10 @@ func TestValidateDomainRejectsHostileInput(t *testing.T) {
 		{"Braces", "a{b}c"},
 		{"Dollar sign", "a$b"},
 		{"Percent sign", "a%b"},
-		{"Wildcard", "*.example.com"},
+		{"Bare wildcard", "*"},
+		{"Wildcard in middle", "foo.*.example.com"},
+		{"Wildcard inside label", "*bad.example.com"},
+		{"Wildcard suffix", "example.*"},
 		{"Backslash", `a\b`},
 		{"Underscore", "a_b.com"},
 		{"Control char NUL", "a\x00b"},
@@ -163,6 +166,8 @@ func TestValidateDomainAcceptsValidHostnames(t *testing.T) {
 		{"Internal hyphens", "mi-sitio.com"},
 		{"Punycode", "xn--bcher-kva.example"},
 		{"Digits only", "127.0.0.1"},
+		{"Wildcard domain", "*.example.com"},
+		{"Nested wildcard domain", "*.sub.example.com"},
 		{"Maximum length", strings.Repeat("a.", 126) + "a"},
 	}
 

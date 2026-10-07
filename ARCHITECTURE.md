@@ -58,9 +58,8 @@
 
 ## Component Map
 
-> **MVP status:** the Coraza audit log reader/parser (`logs/reader.go`) and the UI templates
-> for logs and rollback are implemented in the MVP. The settings page (CF token management)
-> and SSE log streaming remain planned.
+> **MVP status:** WAF mode toggle, CRS exclusions, IP rules, log viewer, native rate limiting,
+> and rollback are implemented in the MVP. SSE log streaming remains planned.
 
 ```
 caddy-waf-ui/
@@ -79,6 +78,8 @@ caddy-waf-ui/
 │   │   ├── overlay.go           # Shared overlay header contract (# domain: | mode: | updated:)
 │   │   ├── scanner.go           # Discovers domains from ui-managed/ (scan per request)
 │   │   └── slug.go              # DomainSlug - filesystem-safe slug for file names
+│   ├── ratelimit/
+│   │   └── ratelimit.go         # Token-bucket rate limiting (Login per-client/global, API per-client IP)
 │   ├── service/
 │   │   ├── chain.go             # Shared change chain: validate → backup → generate → write → reload → audit (runChain)
 │   │   └── validate.go          # ValidateDomain (RFC 1035) → ErrInvalidDomain → 400
@@ -253,15 +254,16 @@ All UI routes follow the same lifecycle:
 
 ```
 Request
-  └─► auth.BearerMiddleware        # 401 if token missing or invalid
-        └─► audit.LogRequest        # log every request (method, path, remote IP)
-              └─► handler           # business logic
-                    ├─► files.Backup()         # always before write
-                    ├─► generate snippet       # pure function, no side effects
-                    ├─► files.AtomicWrite()    # write temp → rename
-                    ├─► caddy.Reload()         # POST /load to Admin API
-                    ├─► audit.LogAction()      # structured audit entry
-                    └─► respond                # 200 full-page re-render OR 500 with error (no HTMX)
+  └─► ratelimit.Login / API         # 429 Retry-After if request rate exceeded
+        └─► auth.Bearer / Session   # 401/303 if token missing or invalid
+              └─► audit.LogRequest  # log every request (method, path, remote IP)
+                    └─► handler     # business logic
+                          ├─► files.Backup()         # always before write
+                          ├─► generate snippet       # pure function, no side effects
+                          ├─► files.AtomicWrite()    # write temp → rename
+                          ├─► caddy.Reload()         # POST /load to Admin API
+                          ├─► audit.LogAction()      # structured audit entry
+                          └─► respond                # 200 full-page re-render OR 500 with error (no HTMX)
 ```
 
 On any failure after `files.Backup()`, the backup is preserved and the UI surfaces a rollback prompt.
@@ -337,14 +339,6 @@ Every action emitted to stdout as JSON:
   "caddy_reload": "success"
 }
 ```
-
-### Cloudflare token (NIST SC-28, planned - not implemented in MVP)
-
-- Stored in `.env` (permissions `600`)
-- Displayed in UI as `••••••••••••{last4}`
-- Written to `.env` on update via atomic write
-- Never appears in audit logs, access logs, or error responses
-
 ### Browser content security (CSP)
 
 - All responses (pages, API, login, and assets) carry `Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` (see `internal/ui/static.go`)

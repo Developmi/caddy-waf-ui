@@ -6,6 +6,7 @@ package ratelimit
 // Allow(key) are the same production path that runs under -race.
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -344,11 +345,11 @@ func TestLoginMiddleware(t *testing.T) {
 		}
 	}
 
-	// POST requests should be limited per client IP
-	clientIP := "192.0.2.2:12345"
+	// POST requests should be limited per client IP regardless of ephemeral port
+	baseIP := "192.0.2.2"
 	for i := 0; i < LoginPerClientBurst; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/login", nil)
-		req.RemoteAddr = clientIP
+		req.RemoteAddr = fmt.Sprintf("%s:%d", baseIP, 10000+i)
 		rec := httptest.NewRecorder()
 		middleware.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -356,9 +357,9 @@ func TestLoginMiddleware(t *testing.T) {
 		}
 	}
 
-	// 6th POST must return 429
+	// 6th POST with another ephemeral port must return 429
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)
-	req.RemoteAddr = clientIP
+	req.RemoteAddr = fmt.Sprintf("%s:19999", baseIP)
 	rec := httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	if rec.Code != http.StatusTooManyRequests {
@@ -375,10 +376,10 @@ func TestAPIMiddleware(t *testing.T) {
 	})
 	middleware := API(handler)
 
-	clientIP := "192.0.2.3:12345"
+	baseIP := "192.0.2.3"
 	for i := 0; i < APIBurst; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/api/sites", nil)
-		req.RemoteAddr = clientIP
+		req.RemoteAddr = fmt.Sprintf("%s:%d", baseIP, 20000+i)
 		rec := httptest.NewRecorder()
 		middleware.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -386,9 +387,9 @@ func TestAPIMiddleware(t *testing.T) {
 		}
 	}
 
-	// Next request must be limited to 429
+	// Next request with another ephemeral port must be limited to 429
 	req := httptest.NewRequest(http.MethodGet, "/api/sites", nil)
-	req.RemoteAddr = clientIP
+	req.RemoteAddr = fmt.Sprintf("%s:29999", baseIP)
 	rec := httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	if rec.Code != http.StatusTooManyRequests {

@@ -22,9 +22,9 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o caddy-waf-ui ./cmd/server/
 
 # Stage 2: Final image (runtime)
-# Alpine 3.23.5: same line as the caddy:2.11.4 base (caddy-waf v3.5.5 image).
+# Alpine 3.24.2: immutable pin, aligned with caddy-waf v3.6.0 ecosystem standards.
 # NEVER use :latest - immutable pin, aligned with the ecosystem.
-FROM alpine:3.23.5
+FROM alpine:3.24.2
 
 # Static OCI metadata (supply chain: trace the artifact origin and license)
 LABEL org.opencontainers.image.title="caddy-waf-ui"
@@ -32,15 +32,13 @@ LABEL org.opencontainers.image.description="Self-hosted sidecar management UI fo
 LABEL org.opencontainers.image.source="https://github.com/developmi/caddy-waf-ui"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Install root certificates and timezone data (useful for logs and Cloudflare API calls),
+# Install root certificates and timezone data (useful for logs and external HTTPS calls),
 # create the UI non-root user and the managed directories with user ownership:
 # named volumes inherit the directory ownership on first mount, avoiding permission
 # errors (EACCES) in ui-managed/ and backups/. Pinned package versions (DL3018).
 #
-# TRANSITIONAL PIN — openssl=3.5.8-r0 removes CVE-2026-14456 (OpenSSL 3.5.7-r0 → 3.5.8-r0; the
-# fixed version is already available in APKINDEX v3.23/main and v3.24/main). REMOVE this pin
-# once alpine 3.23.6 or 3.24.2 publish the fixed version.
-RUN apk --no-cache add ca-certificates=20260909-r0 openssl=3.5.8-r0 tzdata=2026d-r0 \
+# TRANSITIONAL PIN — openssl=3.5.9-r0, tzdata=2026e-r0 aligned with Alpine 3.24.2 APKINDEX.
+RUN apk --no-cache add ca-certificates=20260909-r0 openssl=3.5.9-r0 tzdata=2026e-r0 \
     && adduser -D -g '' uiuser \
     && mkdir -p /ui-managed /backups \
     && chown -R uiuser:uiuser /ui-managed /backups

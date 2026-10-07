@@ -291,3 +291,31 @@ func TestAPIRollbackInvalidBackupRejected(t *testing.T) {
 		t.Errorf("Caddy must not be reloaded with an invalid snapshot, %d reloads made", admin.reloads)
 	}
 }
+
+// TestAPIWildcardDomainModeUpdate verifies that a wildcard domain (e.g. *.example.com)
+// can be configured via the REST API end-to-end, producing the expected slug overlay.
+func TestAPIWildcardDomainModeUpdate(t *testing.T) {
+	admin := &adminStub{}
+	handler := setupEnv(t, admin)
+
+	req := bearerRequest(t, http.MethodPut, "/api/sites/*.example.com/mode", []byte(`{"mode":"On"}`))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 on wildcard domain mode update, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	managedDir := os.Getenv("CADDY_UI_MANAGED_DIR")
+	overlayPath := filepath.Join(managedDir, "waf-wildcard_example_com.conf")
+	overlay, err := os.ReadFile(overlayPath)
+	if err != nil {
+		t.Fatalf("wildcard overlay was not written: %v", err)
+	}
+	if !strings.Contains(string(overlay), "SecRuleEngine On") {
+		t.Errorf("expected SecRuleEngine On in overlay, got:\n%s", overlay)
+	}
+	if admin.reloads != 1 {
+		t.Errorf("expected 1 Caddy reload, got %d", admin.reloads)
+	}
+}

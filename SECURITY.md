@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| 1.2.x (latest: v1.2.0) | ✅ |
+| 1.3.x (latest: v1.3.0) | ✅ |
+| 1.2.x | ❌ |
 | 1.1.x | ❌ |
 | 1.0.x | ❌ |
 | older releases | ❌ |
@@ -146,8 +147,9 @@ Documented design decisions, not defects:
   redeploys with a rotated `CADDY_UI_TOKEN`. This is the accepted trade-off
   of a single-operator admin console: treat the token as full admin access
   and rotate it when it may have been exposed.
-- **No rate limiting on `/login` or the API.** Brute force is mitigated by
-  constant-time token comparison plus a high-entropy token, not by
-  throttling. Rate limiting is intentionally left to the deployment layer:
-  Caddy (e.g. the `rate_limit` directive) or the reverse proxy in front of
-  the UI.
+- **Native sliding token-bucket rate limiting.** `POST /login` is throttled
+  to 5 requests/minute per client IP (burst 5) with a global ceiling of 60
+  requests/minute. `/api/*` is throttled to 120 requests/minute per client IP
+  (burst 30). Requests exceeding limits receive HTTP 429 with `Retry-After`.
+  Perimeter rate limiting in Caddy (the `rate_limit` directive) acts as
+  defense-in-depth before traffic reaches the UI sidecar.

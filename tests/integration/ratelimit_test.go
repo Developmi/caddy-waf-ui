@@ -114,7 +114,8 @@ func TestRLLoginUnderLimitThenPerClientBreach(t *testing.T) {
 		}
 	}
 
-	rec := rlRequest(t, handler, http.MethodPost, "/login", client, "super-secret-token")
+	// 6th POST from the same client IP with a DIFFERENT ephemeral port must still be blocked (429)
+	rec := rlRequest(t, handler, http.MethodPost, "/login", "203.0.113.10:9999", "super-secret-token")
 	assertRetryAfter(t, rec)
 }
 

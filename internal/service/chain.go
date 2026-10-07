@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/developmi/caddy-waf-ui/internal/caddy"
 	"github.com/developmi/caddy-waf-ui/internal/config"
@@ -13,6 +14,10 @@ import (
 	"github.com/developmi/caddy-waf-ui/internal/logs"
 	"github.com/developmi/caddy-waf-ui/internal/waf"
 )
+
+// chainMu serializes all configuration overlay mutations, backups and Caddy
+// reload operations process-wide, preventing race conditions between concurrent requests.
+var chainMu sync.Mutex
 
 // ErrInvalidMode signals an unsupported WAF mode: REST handlers translate it
 // to 400 Bad Request.
@@ -89,6 +94,9 @@ type chainOpts struct {
 // creating backup", "error reloading Caddy", "error restoring overlay") are
 // generated HERE.
 func runChain(domainName, remoteIP string, opts chainOpts) error {
+	chainMu.Lock()
+	defer chainMu.Unlock()
+
 	previous, existed, err := readPreviousState(opts.confPath)
 	if err != nil {
 		logs.LogAction(opts.failEvent, domainName, opts.from, opts.failTo, remoteIP, "read error: "+err.Error())
