@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to fill out this bug report. Check
-        CHANGELOG.md and the Roadmap in README.md first to avoid duplicates.
+        CHANGELOG.md and [ROADMAP.md](../../ROADMAP.md) first to avoid duplicates.
   - type: input
     id: version
     attributes:

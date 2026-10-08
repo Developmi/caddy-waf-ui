@@ -11,7 +11,7 @@
 [![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/developmi/caddy-waf-ui/actions)
 [![Supply Chain](https://img.shields.io/badge/Supply_Chain-Cosign_|_SLSA_|_Trivy-4A90D9?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/actions)
 [![Status](https://img.shields.io/badge/Status-v1.3.0-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
-[![License](https://img.shields.io/badge/License-MIT_©_Miguel_Lozano_|_Developmi-blue?style=for-the-badge)](./LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](./LICENSE)
 ![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano_|_Cloud_&_Infrastructure_Engineer-black?style=for-the-badge)
 
 </div>
@@ -466,15 +466,13 @@ Rolling back:
 
 ## Roadmap
 
-| Version | Feature |
-|---|---|
-| v1.0.0 | WAF mode toggle, CRS exclusions, IP rules, log viewer, rollback |
-| v1.1.0 | Bulk exclusion import/export (JSON) |
-| v2.0.0 | Paranoia Level tuning per site |
-| v2.1.0 | Rate limit config via UI (`caddy-ratelimit`) |
-| v2.2.0 | Dashboard - top triggered rules, blocked requests, per-site metrics |
-| v2.3.0 | WebSocket bypass toggle per site |
-| v3.0.0 | Config export as Ansible-compatible YAML (vault-ready) |
+The product evolution, milestone breakdown (from `v1.0.0` foundation to `v3.0.0` enterprise IaC automation), and technical controls are tracked in the dedicated [ROADMAP.md](./ROADMAP.md).
+
+| Horizon | Primary Focus | Reference |
+|---|---|---|
+| **v1.x** | Core UI sidecar, NIST hardening, wildcard domains, and operational log rotation | [ROADMAP.md#v140--operational-reliability--data-mobility](./ROADMAP.md#v140--operational-reliability--data-mobility) |
+| **v2.x** | Granular Coraza Paranoia Level tuning, CIDR radix matching, security dashboard | [ROADMAP.md#v200--granular-waf--coraza-engine-tuning](./ROADMAP.md#v200--granular-waf--coraza-engine-tuning) |
+| **v3.x** | Ansible YAML export, Vault integration, and Admin API mTLS authentication | [ROADMAP.md#v300--enterprise-iac--automation](./ROADMAP.md#v300--enterprise-iac--automation) |
 
 ---
 
