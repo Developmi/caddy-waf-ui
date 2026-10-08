@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for suggesting an improvement. Check the Roadmap in README.md
+        Thanks for suggesting an improvement. Check [ROADMAP.md](../../ROADMAP.md)
         first to see what is already planned or explicitly out of scope.
   - type: textarea
     id: problem
