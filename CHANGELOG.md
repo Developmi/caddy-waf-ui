@@ -6,6 +6,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.4.0] - 2026-10-11
+
+### Added
+
+* **Native Fuzz Testing (`feat(testing)`)**: Added native Go fuzzing harnesses (`internal/domain/slug_fuzz_test.go`, `internal/logs/reader_fuzz_test.go`) validating domain slug sanitation and corrupted Coraza audit log parsing resilience against arbitrary mutation streams (`make test-fuzz`).
+* **Enforced Coverage Gate (`feat(ci)`)**: Added automated statement coverage gate (`make test-coverage-gate`) ensuring repository code coverage strictly meets or exceeds 85% across all packages (verified at 92.8%).
+
+### Security & Hardening
+
+* **Numeric UID Container Hardening (`fix(docker)`)**: Resolved Hadolint DL3066 by switching to deterministic numeric `USER 1000:1000` with explicit `addgroup -g 1000 uiuser && adduser -u 1000 -G uiuser -D uiuser` in `Dockerfile`.
+* **Go Toolchain & Context Safety (`chore(deps)`)**: Upgraded builder image to `golang:1.27.2-alpine` and updated `go.mod` to Go 1.27.2. Enforced context-aware HTTP requests (`http.NewRequestWithContext`) in `internal/caddy/admin.go`.
+* **Advanced Static Analysis (`feat(lint)`)**: Enabled security linters `bodyclose`, `nilerr`, `noctx`, and `contextcheck` in `.golangci.yml` with zero false-positives.
+* **Upstream caddy-waf Alignment**: Updated default `caddy-waf` container image tag from `v3.6.0` to `v3.6.1` across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
+* **Dev Tools Updates**: Bumped `golangci-lint` to `v2.14.0` and `govulncheck` to `v1.8.0` in `tools/versions.mk`.
+
+---
+
 ## [1.3.0] - 2026-10-07
 
 ### Added

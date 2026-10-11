@@ -24,7 +24,7 @@ help:
 	@echo ""
 	@echo "Testing & Quality (Unified)"
 	@echo "---------------------------"
-	@echo "  make test             Run full verification: format, vet, all linters, race tests"
+	@echo "  make test             Run full verification: format, vet, all linters, vuln, race, fuzz, coverage gate, integration"
 	@echo ""
 	@echo "Granular Testing"
 	@echo "----------------"
@@ -190,14 +190,35 @@ test-pkg:                                # Run tests for a specific package: mak
 	@go test -race -cover ./$(PKG)/...
 	@echo "✓ Package tests passed."
 
+.PHONY: test-fuzz
+test-fuzz:                               # Run fuzz regression tests
+	@echo "==> Tests (fuzz regression)"
+	@go test -fuzz=FuzzDomainSlug -fuzztime=2s ./internal/domain/...
+	@go test -fuzz=FuzzParseLine -fuzztime=2s ./internal/logs/...
+	@echo "✓ Fuzz regression tests passed."
+
+.PHONY: test-coverage-gate
+test-coverage-gate:                      # Enforce strict statement coverage threshold (>= 85%)
+	@echo "==> Tests (coverage threshold gate >= 85%)"
+	@go test -race -coverprofile=coverage.out ./...
+	@TOTAL_COVER=$$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $$3}' | tr -d '%'); \
+	echo "Total statement coverage: $${TOTAL_COVER}% (threshold: 85.0%)"; \
+	PASS=$$(awk -v tc="$$TOTAL_COVER" 'BEGIN { print (tc >= 85.0) ? "1" : "0" }'); \
+	if [ "$$PASS" != "1" ]; then \
+		echo "❌ Coverage $${TOTAL_COVER}% is below required threshold 85.0%" >&2; \
+		exit 1; \
+	fi
+	@echo "✓ Coverage gate passed."
+
 .PHONY: test
-test: fmt vet lint test-race             # Run full test & quality suite (fmt, vet, all linters, race tests)
+test: fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration   # Run full test & quality suite (fmt, vet, linters, vuln, race, fuzz, coverage gate, integration)
 	@echo
 	@echo "✓ All tests and quality checks passed."
 
 .PHONY: vuln
 vuln:                                    # Check dependencies for known vulnerabilities
 	@echo "==> Vulnerabilities"
+	@test -x $(TOOLS)/govulncheck || $(MAKE) --no-print-directory tools
 	@$(TOOLS)/govulncheck ./...
 	@echo "✓ Vulnerability scan passed."
 

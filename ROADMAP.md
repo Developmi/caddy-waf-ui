@@ -10,7 +10,7 @@ The project adheres to strict **Go standard-library purity** (zero third-party G
 
 ```mermaid
 flowchart LR
-    A["v1.0 - v1.3 (Completed)\nFoundations & Hardening"] --> B["v1.4.0 (Next Minor)\nOperations & Data Mobility"]
+    A["v1.0 - v1.4 (Completed)\nFoundations & Quality Gates"] --> B["v1.5.0 (Next Minor)\nOperations & Data Mobility"]
     B --> C["v2.0.0 (Major)\nGranular WAF Tuning"]
     C --> D["v2.x (Analytics & Edge)\nMetrics & Streaming"]
     D --> E["v3.0.0 (Enterprise)\nIaC Automation & Vault"]
@@ -28,12 +28,13 @@ flowchart LR
 | **v1.1.x** | Standards & CI Alignment | Standardized 100% English code/docs/UI copy, decoupled least-privilege CI/CD with Cosign OCI keyless signing, SLSA Level 3 provenance attestations, and Trivy automated vulnerability gates. |
 | **v1.2.0** | Perimeter Hardening & Coverage | Perimeter security headers, defense-in-depth `@sensitive_paths` block, unit/statement test coverage raised above 92% across all internal packages with HTTP streaming passthrough coverage. |
 | **v1.3.0** | Upstream Parity & Concurrency Safety | Aligned with upstream `caddy-waf:v3.6.0` (Caddy 2.11.7, CRS v4.30.0, Alpine 3.24.2 with pinned packages), wildcard domain support (`*.domain.tld`), service mutation mutex (`chainMu`) preventing reload races, client IP extraction fix in rate limiters (`net.SplitHostPort`), and CSP baseline headers. |
+| **v1.4.0** | Quality & Hardening Gates | Native Go fuzz testing suite (`make test-fuzz`), automated statement coverage enforcement gate (`make test-coverage-gate`, $\ge 85\%$), Go 1.27.2 toolchain alignment with request context safety, advanced static analysis (`bodyclose`, `nilerr`, `noctx`, `contextcheck`), Hadolint DL3066 numeric user hardening (`USER 1000:1000`), and `caddy-waf:v3.6.1` upstream alignment. |
 
 ---
 
 ### 🚀 Upcoming Milestones
 
-#### 📦 v1.4.0 — Operational Reliability & Data Mobility
+#### 📦 v1.5.0 — Operational Reliability & Data Mobility
 
 Focused on operational ergonomics, bulk data portability, and audit resilience without introducing external dependencies.
 

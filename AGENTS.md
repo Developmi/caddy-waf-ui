@@ -2,14 +2,16 @@
 
 ## Stack
 - **Type**: Management binary (`cmd/server`) and Web UI sidecar for Caddy + Coraza WAF
-- **Language**: Go 1.26.4 (toolchain 1.26.6), stdlib-only (zero external Go dependencies, no vendor)
+- **Language**: Go 1.27.2 (toolchain 1.27.2), stdlib-only (zero external Go dependencies, no vendor)
 - **Frontend / UI**: Server-rendered HTML via `embed.FS` (`internal/ui/templates`, `internal/ui/static/app.js`, `app.css`)
 - **Orchestration / Runtime**: Docker Compose sidecar with Caddy, shared volume `/ui-managed`
 
 ## Commands
 - **Run**: `go run ./cmd/server` or `docker compose up`
-- **Test**: `make test` (`go test ./...`)
+- **Test**: `make test` (`fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration`)
 - **Test Race**: `make test-race` (`go test -race ./...`)
+- **Test Fuzz**: `make test-fuzz` (`go test -fuzz=...` native harnesses for slugs and audit log)
+- **Test Coverage Gate**: `make test-coverage-gate` (enforces >= 85% statement coverage across packages)
 - **Integration**: `go test ./tests/integration/...`
 - **Lint**: `make lint` (`lint-go`, `lint-yaml`, `lint-actions`, `lint-docker`, `lint-security`)
 - **Format**: `make fmt` (`gofmt -l .`)
@@ -18,7 +20,7 @@
 - **Build**: `make build` (`go build ./...`)
 - **Docker**: `make docker-build` (`docker build -t caddy-waf-ui:local .`)
 - **Validate Compose**: `make compose-config` (`docker compose config --quiet`)
-- **Release Gate**: `make release-ready` (fmt vet lint vuln test-race compose-config build docker-build)
+- **Release Gate**: `make release-ready` (fmt vet lint vuln test-race test-fuzz test-coverage-gate compose-config build docker-build)
 
 ## SDD Context
 - **CodeGraph indexed**: yes (`.codegraph/` present)
@@ -30,7 +32,7 @@
 - **License**: MIT - open source
 - **Maintainer**: Miguel Lozano / Developmi
 - **Architecture**: Sidecar writes configuration overlays (`coraza_waf`, IP rules) to `/ui-managed` and triggers reloads via Caddy Admin API (`:2019/load`)
-- **Container Hardening**: Non-root user `uiuser` (UID 1000), read-only rootfs, drop capabilities ALL, no-new-privileges, pinned packages in Dockerfile (`openssl=3.5.9-r0`, `tzdata=2026e-r0`, Alpine 3.24.2)
+- **Container Hardening**: Non-root numeric `USER 1000:1000` (`uiuser`), read-only rootfs, drop capabilities ALL, no-new-privileges, pinned packages in Dockerfile (`openssl=3.5.9-r0`, `tzdata=2026e-r0`, Alpine 3.24.2), Hadolint DL3066 compliant
 - **App Security**: Constant-time password comparison (`subtle.ConstantTimeCompare`), session token generation (`crypto/rand`), login/API sliding rate limiting, CSRF tokens, strict path sanitization against directory traversal
 
 ## CI/CD

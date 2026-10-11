@@ -7,10 +7,10 @@
 > Sidecar management UI for [caddy-waf](https://github.com/Developmi/caddy-waf).  
 > Per-site WAF mode, CRS exclusions, IP rules, and rollback - without touching your base Caddyfile.
 
-[![Stack](https://img.shields.io/badge/Go_1.26.4-stdlib--only-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
+[![Stack](https://img.shields.io/badge/Go_1.27.2-stdlib--only-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
 [![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/developmi/caddy-waf-ui/actions)
 [![Supply Chain](https://img.shields.io/badge/Supply_Chain-Cosign_|_SLSA_|_Trivy-4A90D9?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/actions)
-[![Status](https://img.shields.io/badge/Status-v1.3.0-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
+[![Status](https://img.shields.io/badge/Status-v1.4.0-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](./LICENSE)
 ![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano_|_Cloud_&_Infrastructure_Engineer-black?style=for-the-badge)
 
@@ -68,7 +68,7 @@ Internet → Caddy (base Caddyfile, Ansible-owned, :ro)
 ## Prerequisites
 
 - Docker 24.x+ and Docker Compose v2.x+
-- the `caddy-waf` stack v3.6.0+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
+- the `caddy-waf` stack v3.6.1+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
 - Caddy Admin API reachable at `caddy:2019` (Docker internal network only)
 - Tailscale or equivalent for UI access (UI binds to `0.0.0.0:8080` by default)
 
@@ -112,7 +112,7 @@ export CADDY_ADMIN_URL="http://caddy-waf:2019"
 ```yaml
 # In your existing docker-compose.yml, add:
   caddy-waf-ui:
-    # Tag v1.3.0 exists, and the build-scan-sign pipeline signs (keyless
+    # Tag v1.4.0 exists, and the build-scan-sign pipeline signs (keyless
     # cosign) and publishes to ghcr.io/developmi/caddy-waf-ui whenever a v*
     # tag is pushed - publication is at the maintainer's discretion. Pin an
     # immutable digest in production (SECURITY.md: never `:latest`). Building
@@ -197,7 +197,7 @@ Request flow: `Browser → UI (rate limit + auth + CSRF) → internal/service ch
 
 ## 🐳 Docker deployment
 
-Multi-stage build (builder → runtime), non-root `uiuser`, pinned base images (`golang:1.27.1-alpine`, `alpine:3.24.2`) - never `:latest`. Tag `v1.3.0` exists, and the `docker-build-scan-sign` workflow builds, scans, signs (keyless cosign) and publishes to `ghcr.io/developmi/caddy-waf-ui` **only when a `v*` tag is pushed** - the published image appears at the maintainer's discretion, not automatically. Until then, build from source:
+Multi-stage build (builder → runtime), non-root `uiuser` (UID 1000:1000), pinned base images (`golang:1.27.2-alpine`, `alpine:3.24.2`) - never `:latest`. Tag `v1.4.0` exists, and the `docker-build-scan-sign` workflow builds, scans, signs (keyless cosign) and publishes to `ghcr.io/developmi/caddy-waf-ui` **only when a `v*` tag is pushed** - the published image appears at the maintainer's discretion, not automatically. Until then, build from source:
 
 ```bash
 docker build -t caddy-waf-ui:local .
@@ -209,11 +209,11 @@ The repo's `docker-compose.yml` wires the UI into the `caddy-waf` stack with sha
 docker compose up -d caddy-waf-ui
 ```
 
-> **Security callout:** the UI runs as a non-root user (`uiuser`) with write access **only** to the `ui-managed/` and `/backups` volumes; Caddy mounts `ui-managed/` read-only; the UI port is published on `127.0.0.1` only; the Caddy Admin API is never exposed to the host.
+> **Security callout:** the UI runs as a non-root user (`uiuser`, UID/GID 1000) with write access **only** to the `ui-managed/` and `/backups` volumes; Caddy mounts `ui-managed/` read-only; the UI port is published on `127.0.0.1` only; the Caddy Admin API is never exposed to the host.
 >
 > **Token handling:** `CADDY_UI_TOKEN` in `.env` is **dev-only**. In production, inject it from the orchestrator's secret manager (e.g. `environment: CADDY_UI_TOKEN=${CADDY_UI_TOKEN}` with the value sourced outside the repo) or Docker secrets - never commit it in `.env` files.
 >
-> **Non-numeric `USER uiuser` (hadolint DL3066) is accepted by design:** the user is created with `adduser -D` in the image, and its uid is the deterministic `1000` - the exact uid the named volumes (`ui-managed`, `backups`) are initialized with, so the contract holds on any host. Switching to a numeric `USER 1000` would break reproducibility across images (uid is not guaranteed stable across Alpine releases) without adding security.
+> **Hardened numeric `USER 1000:1000`:** the runtime user and group are deterministically declared as `1000:1000` (`addgroup -g 1000 uiuser && adduser -u 1000 -G uiuser -D uiuser`), strictly complying with Hadolint DL3066 while matching the exact ownership required for named volumes (`ui-managed`, `backups`).
 
 ---
 
@@ -278,7 +278,7 @@ CADDY_UI_AUDIT_LOG=/data/logs/coraza-audit.log
 ACME_EMAIL=admin@example.com
 SITE_ADDRESS=localhost
 BACKEND_UPSTREAM=example-app:80
-CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.0
+CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.1
 EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 ```
 
@@ -289,10 +289,12 @@ EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 Unit tests cover the service chain, overlay generation, auth (constant-time compare, sessions, CSRF), the Caddy Admin client (including read-back verification), atomic file writes, snapshot retention, and the audit-log reader. Integration tests in `tests/integration/` exercise the REST API and SSR pages against a live stack.
 
 ```bash
-make test               # full test suite + all linters + race detector
-make test-race          # unit tests with race detector
-make test-coverage      # test coverage report (>= 90% across packages)
-make release-ready      # full pre-push gate (fmt, vet, lint, vuln, race, compose, build)
+make test                  # full test suite (fmt, vet, lint, vuln, race, fuzz, coverage gate, integration)
+make test-race             # unit tests with race detector
+make test-fuzz             # native Go fuzzing suite (slug validation & audit log parsing)
+make test-coverage-gate    # strict coverage verification (fails if statement coverage < 85%)
+make test-coverage         # HTML/summary test coverage report
+make release-ready         # full pre-push gate (fmt, vet, lint, vuln, race, compose, build)
 ```
 
 > CI runs three workflows on every PR against `main`: **lint** (golangci-lint, yamllint, actionlint, hadolint, zizmor), **test** (vet, race-detector tests, build, compose validation), and **build-scan-sign** (multi-arch build + Trivy gate with `vuln,secret,misconfig` scanners and SARIF upload). [Dependabot](.github/dependabot.yml) keeps gomod, Docker and GitHub Actions dependencies up to date (weekly, `chore(deps)` commits). The local pre-push gate `make release-ready` (fmt, vet, lint, vuln, test-race, compose-config, build, docker-build) mirrors what CI enforces - it is the merge gate (see [CONTRIBUTING.md](./CONTRIBUTING.md)). On `v*` tag pushes, build-scan-sign additionally pushes the multi-arch image to GHCR with SBOM, keyless cosign signature, and SLSA provenance.

@@ -16,6 +16,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: auto
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
@@ -30,6 +32,9 @@ jobs:
       - name: Install linters
         run: make tools
 
+      - name: Module hygiene (go mod tidy -diff)
+        run: go mod tidy -diff
+
       - name: Vet
         run: make vet
 
@@ -40,6 +45,12 @@ jobs:
 
       - name: Tests (race detector)
         run: make test-race
+
+      - name: Tests (fuzz regression)
+        run: make test-fuzz
+
+      - name: Tests (coverage threshold gate >= 85%)
+        run: make test-coverage-gate
 
       - name: Build
         run: make build
