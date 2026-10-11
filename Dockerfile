@@ -1,7 +1,7 @@
 # Stage 1: Build (builder)
-# Exact toolchain pin: go.mod declares go 1.26.6 (GOTOOLCHAIN=auto does not
+# Exact toolchain pin: go.mod declares go 1.27.2 (GOTOOLCHAIN=auto does not
 # download versions on each build - reproducibility, no float).
-FROM golang:1.27.1-alpine AS builder
+FROM golang:1.27.2-alpine AS builder
 
 # Enable Go modules and configure the working directory
 ENV GO111MODULE=on
@@ -39,16 +39,17 @@ LABEL org.opencontainers.image.licenses="MIT"
 #
 # TRANSITIONAL PIN — openssl=3.5.9-r0, tzdata=2026e-r0 aligned with Alpine 3.24.2 APKINDEX.
 RUN apk --no-cache add ca-certificates=20260909-r0 openssl=3.5.9-r0 tzdata=2026e-r0 \
-    && adduser -D -g '' uiuser \
+    && addgroup -g 1000 -S uiuser \
+    && adduser -u 1000 -S uiuser -G uiuser \
     && mkdir -p /ui-managed /backups \
-    && chown -R uiuser:uiuser /ui-managed /backups
+    && chown -R 1000:1000 /ui-managed /backups
 
-USER uiuser
+USER 1000:1000
 
 WORKDIR /app
 
 # Copy the compiled binary from the previous stage
-COPY --from=builder --chown=uiuser:uiuser /app/caddy-waf-ui .
+COPY --from=builder --chown=1000:1000 /app/caddy-waf-ui .
 
 # Expose the default UI port
 EXPOSE 8080

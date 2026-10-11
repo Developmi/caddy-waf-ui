@@ -2,6 +2,7 @@ package caddy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -123,7 +124,11 @@ func fetchLiveHosts(adminURL string) ([]string, int, error) {
 		return nil, 0, err
 	}
 	client := newAdminClient()
-	resp, err := client.Get(adminURL + "/config/apps/http/servers")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, adminURL+"/config/apps/http/servers", nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -209,7 +214,7 @@ func Reload() error {
 		return fmt.Errorf("could not read Caddyfile %q: %w", caddyfilePath, err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, adminURL+"/load", bytes.NewReader(caddyfile))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, adminURL+"/load", bytes.NewReader(caddyfile))
 	if err != nil {
 		setReadback(ReadbackState{OK: false, CheckedAt: time.Now().UTC(), Err: err.Error()})
 		return fmt.Errorf("error creating reload request: %w", err)
