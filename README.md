@@ -289,7 +289,7 @@ EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 Unit tests cover the service chain, overlay generation, auth (constant-time compare, sessions, CSRF), the Caddy Admin client (including read-back verification), atomic file writes, snapshot retention, and the audit-log reader. Integration tests in `tests/integration/` exercise the REST API and SSR pages against a live stack.
 
 ```bash
-make test                  # full test suite (fmt, vet, lint, race, fuzz, coverage gate)
+make test                  # full test suite (fmt, vet, lint, vuln, race, fuzz, coverage gate, integration)
 make test-race             # unit tests with race detector
 make test-fuzz             # native Go fuzzing suite (slug validation & audit log parsing)
 make test-coverage-gate    # strict coverage verification (fails if statement coverage < 85%)

@@ -191,6 +191,18 @@ install_golangci() {
 
 install_govulncheck() {
     [[ "${REINSTALL:-}" = "1" ]] && rm -f "$BIN/govulncheck"
+
+    # Invalidate cached govulncheck binary if compiled with a different Go version
+    if [[ -x "$BIN/govulncheck" ]]; then
+        local current_go tool_go
+        current_go="$(go env GOVERSION 2>/dev/null || true)"
+        tool_go="$(go version "$BIN/govulncheck" 2>/dev/null | awk '{print $2}' || true)"
+        if [[ -n "$current_go" && -n "$tool_go" && "$current_go" != "$tool_go" ]]; then
+            echo "Rebuilding govulncheck due to Go toolchain change ($tool_go -> $current_go)..."
+            rm -f "$BIN/govulncheck"
+        fi
+    fi
+
     [[ -x "$BIN/govulncheck" ]] && return
 
     # The Makefile tools target only passes ACTIONLINT/HADOLINT/GOLANGCI via

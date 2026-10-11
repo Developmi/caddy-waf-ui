@@ -8,7 +8,7 @@
 
 ## Commands
 - **Run**: `go run ./cmd/server` or `docker compose up`
-- **Test**: `make test` (`fmt vet lint test-race test-fuzz test-coverage-gate`)
+- **Test**: `make test` (`fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration`)
 - **Test Race**: `make test-race` (`go test -race ./...`)
 - **Test Fuzz**: `make test-fuzz` (`go test -fuzz=...` native harnesses for slugs and audit log)
 - **Test Coverage Gate**: `make test-coverage-gate` (enforces >= 85% statement coverage across packages)

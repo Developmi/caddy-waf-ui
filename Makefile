@@ -24,7 +24,7 @@ help:
 	@echo ""
 	@echo "Testing & Quality (Unified)"
 	@echo "---------------------------"
-	@echo "  make test             Run full verification: format, vet, all linters, race tests"
+	@echo "  make test             Run full verification: format, vet, all linters, vuln, race, fuzz, coverage gate, integration"
 	@echo ""
 	@echo "Granular Testing"
 	@echo "----------------"
@@ -211,13 +211,14 @@ test-coverage-gate:                      # Enforce strict statement coverage thr
 	@echo "✓ Coverage gate passed."
 
 .PHONY: test
-test: fmt vet lint test-race test-fuzz test-coverage-gate   # Run full test & quality suite (fmt, vet, linters, race, fuzz, coverage gate)
+test: fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration   # Run full test & quality suite (fmt, vet, linters, vuln, race, fuzz, coverage gate, integration)
 	@echo
 	@echo "✓ All tests and quality checks passed."
 
 .PHONY: vuln
 vuln:                                    # Check dependencies for known vulnerabilities
 	@echo "==> Vulnerabilities"
+	@test -x $(TOOLS)/govulncheck || $(MAKE) --no-print-directory tools
 	@$(TOOLS)/govulncheck ./...
 	@echo "✓ Vulnerability scan passed."
 
