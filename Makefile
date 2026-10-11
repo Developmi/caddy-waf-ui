@@ -24,7 +24,7 @@ help:
 	@echo ""
 	@echo "Testing & Quality (Unified)"
 	@echo "---------------------------"
-	@echo "  make test             Run full verification: format, vet, all linters, vuln, race, fuzz, coverage gate, integration"
+	@echo "  make test             Run full verification: format, vet, all linters, vuln, race, fuzz, coverage gate, integration, security scan"
 	@echo ""
 	@echo "Granular Testing"
 	@echo "----------------"
@@ -32,6 +32,7 @@ help:
 	@echo "  make test-race        Run unit tests with race detector"
 	@echo "  make test-coverage    Run tests and output statement coverage"
 	@echo "  make test-integration Run integration tests with race detector"
+	@echo "  make test-security    Run Trivy vulnerability scan against container image"
 	@echo "  make test-pkg PKG=... Run tests for a specific package (e.g. PKG=internal/logs)"
 	@echo ""
 	@echo "Granular Quality & Linters"
@@ -64,6 +65,7 @@ tools:                                   # Install pinned development tools into
 	@ACTIONLINT_VERSION=$(ACTIONLINT_VERSION) \
 	HADOLINT_VERSION=$(HADOLINT_VERSION) \
 	GOLANGCI_VERSION=$(GOLANGCI_VERSION) \
+	TRIVY_VERSION=$(TRIVY_VERSION) \
 	./tools/install.sh
 	@echo "✓ Development tools are ready."
 
@@ -85,6 +87,7 @@ doctor:                                  # Print toolchain and tool versions
 	@printf "%-18s %s\n" "hadolint" "$$($(TOOLS)/hadolint --version | awk '{print $$NF}')"
 	@printf "%-18s %s\n" "actionlint" "$$($(TOOLS)/actionlint -version | head -1)"
 	@printf "%-18s %s\n" "govulncheck" "$$($(TOOLS)/govulncheck -version 2>/dev/null | head -1)"
+	@printf "%-18s %s\n" "trivy" "$$($(TOOLS)/trivy --version 2>/dev/null | head -1 | awk '{print $$2}')"
 	@printf "%-18s %s\n" "yamllint" "$$(uv run yamllint --version | awk '{print $$2}')"
 	@printf "%-18s %s\n" "zizmor" "$$(uv run zizmor --version | awk '{print $$2}')"
 	@echo
@@ -210,10 +213,16 @@ test-coverage-gate:                      # Enforce strict statement coverage thr
 	fi
 	@echo "✓ Coverage gate passed."
 
-.PHONY: test
-test: fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration   # Run full test & quality suite (fmt, vet, linters, vuln, race, fuzz, coverage gate, integration)
+.PHONY: test test-security
+test: fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration test-security   # Run full test & quality suite (fmt, vet, linters, vuln, race, fuzz, coverage gate, integration, security scan)
 	@echo
 	@echo "✓ All tests and quality checks passed."
+
+test-security: tools                     # Run Trivy vulnerability scan against container image (gate on HIGH/CRITICAL)
+	@echo "==> Security (Trivy container scan)"
+	@docker image inspect caddy-waf-ui:local >/dev/null 2>&1 || docker build -t caddy-waf-ui:local .
+	@$(TOOLS)/trivy image --exit-code 1 --severity HIGH,CRITICAL caddy-waf-ui:local
+	@echo "✓ Trivy container security scan passed (0 HIGH, 0 CRITICAL)."
 
 .PHONY: vuln
 vuln:                                    # Check dependencies for known vulnerabilities
