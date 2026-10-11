@@ -73,6 +73,7 @@ venv/
 # =========================
 # Local tooling state
 # =========================
+.agents
 .codegraph/
 .aider*
 .atl/
