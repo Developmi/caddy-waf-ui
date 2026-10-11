@@ -15,9 +15,17 @@ linters:
     - ineffassign
     - gosec
     - misspell
+    - bodyclose
+    - nilerr
+    - noctx
+    - contextcheck
 
   exclusions:
     rules:
+      # noctx in unit tests: requests constructed against in-process httptest servers
+      # do not require explicit cancellation contexts.
+      - path: "_test\\.go"
+        linters: [noctx]
       # G704 (SSRF) / G304 (path traversal) / G703 (taint) in the Admin API
       # client: the base URL is operator-controlled (CADDY_ADMIN_URL, default
       # http://caddy-waf:2019) and validated by validateAdminURL (scheme,
