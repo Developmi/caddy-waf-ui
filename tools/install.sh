@@ -192,13 +192,18 @@ install_golangci() {
 install_govulncheck() {
     [[ "${REINSTALL:-}" = "1" ]] && rm -f "$BIN/govulncheck"
 
-    # Invalidate cached govulncheck binary if compiled with a different Go version
+    local target_go
+    target_go="$(sed -n 's/^toolchain[[:space:]]\+//p' "$ROOT/go.mod" | head -1 | tr -d '[:space:]')"
+    if [[ -z "$target_go" ]]; then
+        target_go="go$(sed -n 's/^go[[:space:]]\+//p' "$ROOT/go.mod" | head -1 | tr -d '[:space:]')"
+    fi
+
+    # Invalidate cached govulncheck binary if compiled with a different Go version than required by go.mod
     if [[ -x "$BIN/govulncheck" ]]; then
-        local current_go tool_go
-        current_go="$(go env GOVERSION 2>/dev/null || true)"
+        local tool_go
         tool_go="$(go version "$BIN/govulncheck" 2>/dev/null | awk '{print $2}' || true)"
-        if [[ -n "$current_go" && -n "$tool_go" && "$current_go" != "$tool_go" ]]; then
-            echo "Rebuilding govulncheck due to Go toolchain change ($tool_go -> $current_go)..."
+        if [[ -n "$target_go" && -n "$tool_go" && "$target_go" != "$tool_go" ]]; then
+            echo "Rebuilding govulncheck: tool was built with $tool_go, but project requires $target_go..."
             rm -f "$BIN/govulncheck"
         fi
     fi
@@ -227,9 +232,9 @@ install_govulncheck() {
     # there is no archive + sha256 to verify here (D9 adapted). Integrity comes
     # from the Go checksum DB: `go install @v<pin>` aborts non-zero if the module
     # does not match sum.golang.org, so a tampered acquisition never installs.
-    echo "Installing govulncheck v${GOVULNCHECK_VERSION} (pinned, GOSUMDB-verified)..."
+    echo "Installing govulncheck v${GOVULNCHECK_VERSION} (pinned, GOSUMDB-verified, toolchain $target_go)..."
 
-    GOBIN="$BIN" go install "golang.org/x/vuln/cmd/govulncheck@v${GOVULNCHECK_VERSION}"
+    GOBIN="$BIN" GOTOOLCHAIN="${target_go}+auto" go install "golang.org/x/vuln/cmd/govulncheck@v${GOVULNCHECK_VERSION}"
 }
 
 install_actionlint
