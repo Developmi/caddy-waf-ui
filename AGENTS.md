@@ -8,10 +8,11 @@
 
 ## Commands
 - **Run**: `go run ./cmd/server` or `docker compose up`
-- **Test**: `make test` (`fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration`)
+- **Test**: `make test` (`fmt vet lint vuln test-race test-fuzz test-coverage-gate test-integration test-security`)
 - **Test Race**: `make test-race` (`go test -race ./...`)
 - **Test Fuzz**: `make test-fuzz` (`go test -fuzz=...` native harnesses for slugs and audit log)
 - **Test Coverage Gate**: `make test-coverage-gate` (enforces >= 85% statement coverage across packages)
+- **Test Security**: `make test-security` (Trivy container scan gating on 0 HIGH/CRITICAL)
 - **Integration**: `go test ./tests/integration/...`
 - **Lint**: `make lint` (`lint-go`, `lint-yaml`, `lint-actions`, `lint-docker`, `lint-security`)
 - **Format**: `make fmt` (`gofmt -l .`)
@@ -20,13 +21,13 @@
 - **Build**: `make build` (`go build ./...`)
 - **Docker**: `make docker-build` (`docker build -t caddy-waf-ui:local .`)
 - **Validate Compose**: `make compose-config` (`docker compose config --quiet`)
-- **Release Gate**: `make release-ready` (fmt vet lint vuln test-race test-fuzz test-coverage-gate compose-config build docker-build)
+- **Release Gate**: `make release-ready` (fmt vet lint vuln test-race test-fuzz test-coverage-gate compose-config build docker-build test-security)
 
 ## SDD Context
 - **CodeGraph indexed**: yes (`.codegraph/` present)
 - **Testing framework**: Go stdlib `testing` + `net/http/httptest` (tests/integration)
 - **Strict TDD**: enabled (`go test -race ./...` / `make test-race`)
-- **Quality tools**: `golangci-lint` | `govulncheck` | `hadolint` | `actionlint` | `yamllint` | `zizmor`
+- **Quality tools**: `trivy` | `golangci-lint` | `govulncheck` | `hadolint` | `actionlint` | `yamllint` | `zizmor`
 
 ## Security Posture & Architecture
 - **License**: MIT - open source

@@ -55,6 +55,9 @@ jobs:
       - name: Build
         run: make build
 
+      - name: Container security scan (Trivy)
+        run: make test-security
+
   compose-config-no-env:
     runs-on: ubuntu-latest
     steps:
