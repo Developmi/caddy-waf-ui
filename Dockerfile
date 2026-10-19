@@ -22,7 +22,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o caddy-waf-ui ./cmd/server/
 
 # Stage 2: Final image (runtime)
-# Alpine 3.24.2: immutable pin, aligned with caddy-waf v3.6.0 ecosystem standards.
+# Alpine 3.24.2: immutable pin, aligned with caddy-waf v3.6.1 ecosystem standards.
 # NEVER use :latest - immutable pin, aligned with the ecosystem.
 FROM alpine:3.24.2
 
