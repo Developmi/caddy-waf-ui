@@ -1,5 +1,5 @@
 # Build, scan, sign and push pipeline for the caddy-waf-ui multi-stage Go
-# Dockerfile (golang:1.27.1-alpine builder -> alpine:3.24.2 runtime, USER uiuser).
+# Dockerfile (golang:1.27.3-alpine builder -> alpine:3.24.3 runtime, USER uiuser).
 #
 # Pipeline architecture (least-privilege, aligned with sibling caddy-waf):
 # 1. scan: read-only (contents: read). Builds amd64 + arm64 locally into daemon
@@ -94,7 +94,7 @@ jobs:
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
-          version: v0.76.0
+          version: v0.76.1
           cache: true
 
       - name: Generate Trivy SARIF reports (amd64 + arm64)

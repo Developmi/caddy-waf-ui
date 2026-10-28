@@ -1,7 +1,7 @@
 # Stage 1: Build (builder)
-# Exact toolchain pin: go.mod declares go 1.27.2 (GOTOOLCHAIN=auto does not
+# Exact toolchain pin: go.mod declares go 1.27.3 (GOTOOLCHAIN=auto does not
 # download versions on each build - reproducibility, no float).
-FROM golang:1.27.2-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 
 # Enable Go modules and configure the working directory
 ENV GO111MODULE=on
@@ -22,9 +22,9 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o caddy-waf-ui ./cmd/server/
 
 # Stage 2: Final image (runtime)
-# Alpine 3.24.2: immutable pin, aligned with caddy-waf v3.6.1 ecosystem standards.
+# Alpine 3.24.3: immutable pin, aligned with caddy-waf ecosystem standards.
 # NEVER use :latest - immutable pin, aligned with the ecosystem.
-FROM alpine:3.24.2
+FROM alpine:3.24.3
 
 # Static OCI metadata (supply chain: trace the artifact origin and license)
 LABEL org.opencontainers.image.title="caddy-waf-ui"
@@ -37,8 +37,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 # named volumes inherit the directory ownership on first mount, avoiding permission
 # errors (EACCES) in ui-managed/ and backups/. Pinned package versions (DL3018).
 #
-# TRANSITIONAL PIN — openssl=3.5.9-r0, tzdata=2026e-r0 aligned with Alpine 3.24.2 APKINDEX.
-RUN apk --no-cache add ca-certificates=20260909-r0 openssl=3.5.9-r0 tzdata=2026e-r0 \
+# TRANSITIONAL PIN — openssl=3.5.9-r0, tzdata=2026e-r0, ca-certificates=20261020-r0 aligned with Alpine 3.24.3 APKINDEX.
+RUN apk --no-cache add ca-certificates=20261020-r0 openssl=3.5.9-r0 tzdata=2026e-r0 \
     && addgroup -g 1000 -S uiuser \
     && adduser -u 1000 -S uiuser -G uiuser \
     && mkdir -p /ui-managed /backups \
