@@ -29,6 +29,7 @@ flowchart LR
 | **v1.2.0** | Perimeter Hardening & Coverage | Perimeter security headers, defense-in-depth `@sensitive_paths` block, unit/statement test coverage raised above 92% across all internal packages with HTTP streaming passthrough coverage. |
 | **v1.3.0** | Upstream Parity & Concurrency Safety | Aligned with upstream `caddy-waf:v3.6.0` (Caddy 2.11.7, CRS v4.30.0, Alpine 3.24.2 with pinned packages), wildcard domain support (`*.domain.tld`), service mutation mutex (`chainMu`) preventing reload races, client IP extraction fix in rate limiters (`net.SplitHostPort`), and CSP baseline headers. |
 | **v1.4.0** | Quality & Hardening Gates | Native Go fuzz testing suite (`make test-fuzz`), automated statement coverage enforcement gate (`make test-coverage-gate`, $\ge 85\%$), Go 1.27.2 toolchain alignment with request context safety, advanced static analysis (`bodyclose`, `nilerr`, `noctx`, `contextcheck`), Hadolint DL3066 numeric user hardening (`USER 1000:1000`), and `caddy-waf:v3.6.1` upstream alignment. |
+| **v1.4.1** | Runtime & Base Image Upgrade | Alpine 3.24.3 runtime base with verified `ca-certificates=20261020-r0`, Go 1.27.3 toolchain, Trivy 0.76.1, and upstream `caddy-waf:v3.6.2` alignment. |
 
 ---
 

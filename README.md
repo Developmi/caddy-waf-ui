@@ -7,10 +7,10 @@
 > Sidecar management UI for [caddy-waf](https://github.com/Developmi/caddy-waf).  
 > Per-site WAF mode, CRS exclusions, IP rules, and rollback - without touching your base Caddyfile.
 
-[![Stack](https://img.shields.io/badge/Go_1.27.2-stdlib--only-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
+[![Stack](https://img.shields.io/badge/Go_1.27.3-stdlib--only-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
 [![CI](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/developmi/caddy-waf-ui/actions)
 [![Supply Chain](https://img.shields.io/badge/Supply_Chain-Cosign_|_SLSA_|_Trivy-4A90D9?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/actions)
-[![Status](https://img.shields.io/badge/Status-v1.4.0-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
+[![Status](https://img.shields.io/badge/Status-v1.4.1-blue?style=for-the-badge)](https://github.com/developmi/caddy-waf-ui/pkgs/container/caddy-waf-ui)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](./LICENSE)
 ![Maintainer](https://img.shields.io/badge/Maintainer-Miguel_Lozano_|_Cloud_&_Infrastructure_Engineer-black?style=for-the-badge)
 
@@ -68,7 +68,7 @@ Internet → Caddy (base Caddyfile, Ansible-owned, :ro)
 ## Prerequisites
 
 - Docker 24.x+ and Docker Compose v2.x+
-- the `caddy-waf` stack v3.6.1+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
+- the `caddy-waf` stack v3.6.2+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
 - Caddy Admin API reachable at `caddy:2019` (Docker internal network only)
 - Tailscale or equivalent for UI access (UI binds to `0.0.0.0:8080` by default)
 
@@ -112,7 +112,7 @@ export CADDY_ADMIN_URL="http://caddy-waf:2019"
 ```yaml
 # In your existing docker-compose.yml, add:
   caddy-waf-ui:
-    # Tag v1.4.0 exists, and the build-scan-sign pipeline signs (keyless
+    # Tag v1.4.1 exists, and the build-scan-sign pipeline signs (keyless
     # cosign) and publishes to ghcr.io/developmi/caddy-waf-ui whenever a v*
     # tag is pushed - publication is at the maintainer's discretion. Pin an
     # immutable digest in production (SECURITY.md: never `:latest`). Building
@@ -197,7 +197,7 @@ Request flow: `Browser → UI (rate limit + auth + CSRF) → internal/service ch
 
 ## 🐳 Docker deployment
 
-Multi-stage build (builder → runtime), non-root `uiuser` (UID 1000:1000), pinned base images (`golang:1.27.2-alpine`, `alpine:3.24.2`) - never `:latest`. Tag `v1.4.0` exists, and the `docker-build-scan-sign` workflow builds, scans, signs (keyless cosign) and publishes to `ghcr.io/developmi/caddy-waf-ui` **only when a `v*` tag is pushed** - the published image appears at the maintainer's discretion, not automatically. Until then, build from source:
+Multi-stage build (builder → runtime), non-root `uiuser` (UID 1000:1000), pinned base images (`golang:1.27.3-alpine`, `alpine:3.24.3`) - never `:latest`. Tag `v1.4.1` exists, and the `docker-build-scan-sign` workflow builds, scans, signs (keyless cosign) and publishes to `ghcr.io/developmi/caddy-waf-ui` **only when a `v*` tag is pushed** - the published image appears at the maintainer's discretion, not automatically. Until then, build from source:
 
 ```bash
 docker build -t caddy-waf-ui:local .
@@ -278,7 +278,7 @@ CADDY_UI_AUDIT_LOG=/data/logs/coraza-audit.log
 ACME_EMAIL=admin@example.com
 SITE_ADDRESS=localhost
 BACKEND_UPSTREAM=example-app:80
-CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.1
+CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.2
 EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 ```
 
