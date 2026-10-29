@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.4.1] - 2026-10-28
+
+### Changed
+
+* **Runtime Base Image (`chore(deps)`)**: Upgraded runtime to **Alpine 3.24.3** with verified `ca-certificates=20261020-r0` pin (aligned with Alpine 3.24.3 APKINDEX).
+* **Go Toolchain (`chore(deps)`)**: Upgraded build stage to `golang:1.27.3-alpine` and updated `go.mod` to Go 1.27.3.
+* **Development & CI Tooling (`chore(deps)`)**: Upgraded Trivy to **0.76.1** in `tools/versions.mk` and CI workflows.
+* **Upstream caddy-waf Alignment (`chore(deps)`)**: Updated default `caddy-waf` reference to **v3.6.2** across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
+
+---
+
 ## [1.4.0] - 2026-10-11
 
 ### Added
