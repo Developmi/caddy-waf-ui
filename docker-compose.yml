@@ -1,6 +1,6 @@
 services:
   caddy-waf:
-    image: ${CADDY_WAF_IMAGE:-ghcr.io/developmi/caddy-waf:v3.6.2}
+    image: ${CADDY_WAF_IMAGE:-ghcr.io/developmi/caddy-waf:v3.6.3}
     container_name: caddy-waf
     user: "1337:1337"
     restart: unless-stopped
@@ -32,7 +32,7 @@ services:
       - caddy-ui-config:/etc/caddy/ui-managed:ro
     environment:
       # ACME email for Let's Encrypt certificates
-      - ACME_EMAIL=${ACME_EMAIL:-}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
       # Site address used by Caddyfile (localhost by default)
       - SITE_ADDRESS=${SITE_ADDRESS:-localhost}
       # Backend upstream used by Caddyfile

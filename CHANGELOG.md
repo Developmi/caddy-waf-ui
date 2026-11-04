@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.4.2] - 2026-11-04
+
+### Changed
+
+* **Alpine 3.24.3 Package Pin Alignment (`fix(docker)`)**: Updated `tzdata` pin to **2026f-r0** in `Dockerfile` to match upstream Alpine 3.24 APKINDEX refresh.
+* **Compose Default Fallback (`fix(compose)`)**: Added default fallback `ACME_EMAIL=${ACME_EMAIL:-admin@example.com}` in `docker-compose.yml` to prevent Caddyfile parsing errors on bare boots without a custom `.env`.
+* **Upstream caddy-waf Alignment (`chore(deps)`)**: Updated default `caddy-waf` reference to **v3.6.3** across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
+
+---
+
 ## [1.4.1] - 2026-10-28
 
 ### Changed
