@@ -37,8 +37,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 # named volumes inherit the directory ownership on first mount, avoiding permission
 # errors (EACCES) in ui-managed/ and backups/. Pinned package versions (DL3018).
 #
-# TRANSITIONAL PIN — openssl=3.5.9-r0, tzdata=2026e-r0, ca-certificates=20261020-r0 aligned with Alpine 3.24.3 APKINDEX.
-RUN apk --no-cache add ca-certificates=20261020-r0 openssl=3.5.9-r0 tzdata=2026e-r0 \
+# TRANSITIONAL PIN — openssl=3.5.9-r0, tzdata=2026f-r0, ca-certificates=20261020-r0 aligned with Alpine 3.24.3 APKINDEX.
+RUN apk --no-cache add ca-certificates=20261020-r0 openssl=3.5.9-r0 tzdata=2026f-r0 \
     && addgroup -g 1000 -S uiuser \
     && adduser -u 1000 -S uiuser -G uiuser \
     && mkdir -p /ui-managed /backups \
