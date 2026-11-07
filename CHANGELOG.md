@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+* **Upstream caddy-waf Alignment (`chore(deps)`)**: Updated default `caddy-waf` reference to **v3.6.4** across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
+
+---
+
 ## [1.4.2] - 2026-11-04
 
 ### Changed
