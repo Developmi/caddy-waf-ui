@@ -68,7 +68,7 @@ Internet → Caddy (base Caddyfile, Ansible-owned, :ro)
 ## Prerequisites
 
 - Docker 24.x+ and Docker Compose v2.x+
-- the `caddy-waf` stack v3.6.3+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
+- the `caddy-waf` stack v3.6.4+ (image `ghcr.io/developmi/caddy-waf`) running with `caddy_admin_enabled: true` - note: the WAF stack and this UI have independent version lines
 - Caddy Admin API reachable at `caddy:2019` (Docker internal network only)
 - Tailscale or equivalent for UI access (UI binds to `0.0.0.0:8080` by default)
 
@@ -278,7 +278,7 @@ CADDY_UI_AUDIT_LOG=/data/logs/coraza-audit.log
 ACME_EMAIL=admin@example.com
 SITE_ADDRESS=localhost
 BACKEND_UPSTREAM=example-app:80
-CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.3
+CADDY_WAF_IMAGE=ghcr.io/developmi/caddy-waf:v3.6.4
 EXAMPLE_APP_IMAGE=containous/whoami:v1.5.0
 ```
 
