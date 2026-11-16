@@ -2,7 +2,7 @@
 
 ## Stack
 - **Type**: Management binary (`cmd/server`) and Web UI sidecar for Caddy + Coraza WAF
-- **Language**: Go 1.27.2 (toolchain 1.27.2), stdlib-only (zero external Go dependencies, no vendor)
+- **Language**: Go 1.27.4 (toolchain 1.27.4), stdlib-only (zero external Go dependencies, no vendor)
 - **Frontend / UI**: Server-rendered HTML via `embed.FS` (`internal/ui/templates`, `internal/ui/static/app.js`, `app.css`)
 - **Orchestration / Runtime**: Docker Compose sidecar with Caddy, shared volume `/ui-managed`
 
@@ -33,7 +33,7 @@
 - **License**: MIT - open source
 - **Maintainer**: Miguel Lozano / Developmi
 - **Architecture**: Sidecar writes configuration overlays (`coraza_waf`, IP rules) to `/ui-managed` and triggers reloads via Caddy Admin API (`:2019/load`)
-- **Container Hardening**: Non-root numeric `USER 1000:1000` (`uiuser`), read-only rootfs, drop capabilities ALL, no-new-privileges, pinned packages in Dockerfile (`openssl=3.5.9-r0`, `tzdata=2026e-r0`, Alpine 3.24.2), Hadolint DL3066 compliant
+- **Container Hardening**: Non-root numeric `USER 1000:1000` (`uiuser`), read-only rootfs, drop capabilities ALL, no-new-privileges, pinned packages in Dockerfile (`openssl=3.5.9-r0`, `tzdata=2026f-r0`, Alpine 3.24.4), Hadolint DL3066 compliant
 - **App Security**: Constant-time password comparison (`subtle.ConstantTimeCompare`), session token generation (`crypto/rand`), login/API sliding rate limiting, CSRF tokens, strict path sanitization against directory traversal
 
 ## CI/CD
