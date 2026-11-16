@@ -6,11 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
-## [Unreleased]
+## [1.4.3] - 2026-11-16
+
+### Security
+
+* **Go 1.27.4 Toolchain Upgrade (`chore(deps)`)**: Updated toolchain and `go.mod` to **Go 1.27.4** and builder stage to `golang:1.27.4-alpine`, mitigating stdlib `net/http` race condition (CVE-2026-97054) and cgo/compiler flag injection vulnerabilities (CVE-2026-97043, CVE-2026-97042, CVE-2026-97041).
 
 ### Changed
 
-* **Upstream caddy-waf Alignment (`chore(deps)`)**: Updated default `caddy-waf` reference to **v3.6.4** across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
+* **Alpine 3.24.4 Runtime (`chore(deps)`)**: Updated base image to `alpine:3.24.4` with verified `ca-certificates=20261020-r0`, `openssl=3.5.9-r0`, and `tzdata=2026f-r0` package pins.
+* **Development Tooling (`chore(tools)`)**: Upgraded Trivy to **0.76.2** with updated asset checksums in `tools/versions.mk`.
+* **CI Dependencies (`ci(deps)`)**: Updated GitHub Actions (`upload-sarif`, `setup-uv`) to latest pinned commit SHAs.
+* **Upstream caddy-waf Alignment (`chore(deps)`)**: Updated default `caddy-waf` reference to **v3.7.0** across `docker-compose.yml`, `.env.example`, `README.md`, and `INTEGRATION.md`.
 
 ---
 
