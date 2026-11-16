@@ -31,6 +31,7 @@ flowchart LR
 | **v1.4.0** | Quality & Hardening Gates | Native Go fuzz testing suite (`make test-fuzz`), automated statement coverage enforcement gate (`make test-coverage-gate`, $\ge 85\%$), Go 1.27.2 toolchain alignment with request context safety, advanced static analysis (`bodyclose`, `nilerr`, `noctx`, `contextcheck`), Hadolint DL3066 numeric user hardening (`USER 1000:1000`), and `caddy-waf:v3.6.1` upstream alignment. |
 | **v1.4.1** | Runtime & Base Image Upgrade | Alpine 3.24.3 runtime base with verified `ca-certificates=20261020-r0`, Go 1.27.3 toolchain, Trivy 0.76.1, and upstream `caddy-waf:v3.6.2` alignment. |
 | **v1.4.2** | Alpine Package Alignment & Compose Hardening | Pinned `tzdata=2026f-r0` in Alpine 3.24.3 runtime, added default compose fallback for `ACME_EMAIL`, and aligned default WAF image to `caddy-waf:v3.6.3`. |
+| **v1.4.3** | Go 1.27.4 & Alpine 3.24.4 Maintenance | Upgraded Go toolchain to 1.27.4 (4 CVEs mitigated), runtime to Alpine 3.24.4, Trivy to 0.76.2, and aligned default WAF image to `caddy-waf:v3.7.0`. |
 
 ---
 
