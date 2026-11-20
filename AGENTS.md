@@ -33,7 +33,7 @@
 - **License**: MIT - open source
 - **Maintainer**: Miguel Lozano / Developmi
 - **Architecture**: Sidecar writes configuration overlays (`coraza_waf`, IP rules) to `/ui-managed` and triggers reloads via Caddy Admin API (`:2019/load`)
-- **Container Hardening**: Non-root numeric `USER 1000:1000` (`uiuser`), read-only rootfs, drop capabilities ALL, no-new-privileges, pinned packages in Dockerfile (`openssl=3.5.9-r0`, `tzdata=2026f-r0`, Alpine 3.24.4), Hadolint DL3066 compliant
+- **Container Hardening**: Non-root numeric `USER 1000:1000` (`uiuser`), read-only rootfs, drop capabilities ALL, no-new-privileges, pinned packages in Dockerfile (`openssl=3.5.9-r1`, `tzdata=2026f-r0`, Alpine 3.24.4), Hadolint DL3066 compliant
 - **App Security**: Constant-time password comparison (`subtle.ConstantTimeCompare`), session token generation (`crypto/rand`), login/API sliding rate limiting, CSRF tokens, strict path sanitization against directory traversal
 
 ## CI/CD
