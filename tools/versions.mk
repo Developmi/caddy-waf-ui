@@ -30,7 +30,7 @@ GOLANGCI_SHA256_DARWIN_ARM64 := d1e409481a8ca846c4bc97e781eb5cb1bd5c23353a0b3977
 # and integrity is enforced by the Go checksum DB (GOSUMDB=sum.golang.org).
 # TODO: if upstream ever publishes release assets + checksums, add the SHA256
 # digests per platform and verify the archive before installing (install.sh).
-GOVULNCHECK_VERSION := v1.9.0
+GOVULNCHECK_VERSION := v1.10.0
 
 TRIVY_VERSION := 0.76.2
 TRIVY_SHA256_LINUX_AMD64  := bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
