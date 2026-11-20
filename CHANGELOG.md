@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 
 ---
 
+## [1.4.4] - 2026-11-20
+
+### Changed
+
+* **Alpine 3.24 Package Pin Alignment (`fix(docker)`)**: Updated `openssl` pin to **3.5.9-r1** in `Dockerfile` to match upstream Alpine 3.24 APKINDEX refresh.
+* **CI Actions Modernization (`ci(deps)`)**: Updated `docker/login-action` to **v4.8.0**, `sigstore/cosign-installer` to **v4.1.3**, and `github/codeql-action/upload-sarif` to **v4.39.3** (`e9c4b4b153701845b921f167180044d14fe89b94`).
+* **Tooling Stability (`fix(tools)`)**: Pinned `govulncheck` to **v1.9.0** in `tools/versions.mk` to ensure compatibility with GitHub Actions runner ambient toolchains.
+
+---
+
 ## [1.4.3] - 2026-11-16
 
 ### Security
@@ -182,3 +192,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/) · Versioning: [Semantic
 * **Domain Validation**: `ValidateDomain` enforces strict RFC 1035 hostnames before any use in paths, templates, or backups. Invalid domains return a `400 Bad Request` (`ErrInvalidDomain`).
 * **Hardened UI Container**: Read-only rootfs, `cap_drop: ALL`, `no-new-privileges`, tmpfs `/tmp`, and OCI labels. Pipeline Trivy scans now include `secret` and `misconfig`.
 * **Authentication & CSRF**: Cookie-session login (HttpOnly, Secure, SameSite=Strict) and HMAC-CSRF double-submit protection on every form. API uses constant-time Bearer token comparison.
+
+[1.4.4]: https://github.com/developmi/caddy-waf-ui/compare/v1.4.3...v1.4.4
+[1.4.3]: https://github.com/developmi/caddy-waf-ui/compare/v1.4.2...v1.4.3
+[1.4.2]: https://github.com/developmi/caddy-waf-ui/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/developmi/caddy-waf-ui/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/developmi/caddy-waf-ui/compare/v1.3.0...v1.4.0
