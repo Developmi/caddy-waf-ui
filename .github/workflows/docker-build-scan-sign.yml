@@ -303,7 +303,7 @@ jobs:
       - name: Upload Trivy SARIF (amd64)
         if: (!cancelled()) && steps.build-push.outputs.digest != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@e9c4b4b153701845b921f167180044d14fe89b94 # v4
+        uses: github/codeql-action/upload-sarif@1f7399200784d9da30eaf9fe2c9488073bd245fe # v4
         with:
           sarif_file: trivy-sarif/trivy-results.sarif
           category: trivy
@@ -311,7 +311,7 @@ jobs:
       - name: Upload Trivy SARIF (arm64)
         if: (!cancelled()) && steps.build-push.outputs.digest != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@e9c4b4b153701845b921f167180044d14fe89b94 # v4
+        uses: github/codeql-action/upload-sarif@1f7399200784d9da30eaf9fe2c9488073bd245fe # v4
         with:
           sarif_file: trivy-sarif/trivy-results-arm64.sarif
           category: trivy-arm64
